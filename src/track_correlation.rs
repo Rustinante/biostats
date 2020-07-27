@@ -79,14 +79,15 @@ pub fn compute_track_correlations(
         }
     };
 
+    let empty_interval_map = IntegerIntervalMap::new();
     let get_target_interval_maps = || {
         chrom_interval_map_a
             .union_zip(&chrom_interval_map_b)
             .into_iter()
             .filter_map(|(chrom, map_list)| {
                 if target_chroms.contains(&chrom) {
-                    let interval_map_a = map_list[0].unwrap();
-                    let interval_map_b = map_list[1].unwrap();
+                    let interval_map_a = map_list[0].unwrap_or_else(|| &empty_interval_map);
+                    let interval_map_b = map_list[1].unwrap_or_else(|| &empty_interval_map);
                     Some((chrom, interval_map_a, interval_map_b))
                 } else {
                     None
@@ -94,10 +95,9 @@ pub fn compute_track_correlations(
             })
     };
 
-    eprintln!("=> Computing correlations");
     let chrom_correlations: Vec<(String, Vec<f64>)> = get_target_interval_maps()
         .map(|(chrom, map_a, map_b)| {
-            eprintln!("chrom: {}", chrom);
+            eprintln!("=> Computing correlations for {}", chrom);
             let correlations = bin_sizes
                 .iter()
                 .map(|&s| match s {
