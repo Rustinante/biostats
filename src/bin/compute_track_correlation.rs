@@ -1,11 +1,13 @@
 use biofile::bed::Bed;
+use biostats::util::get_default_human_chrom_inclusion_set;
 use clap::{clap_app, Arg};
 use math::{
     interval::I64Interval,
     iter::{
-        binned_interval_iter::{AggregateOp, IntoBinnedIntervalIter},
-        CommonRefinementZip, UnionZip,
+        AggregateOp, BinnedIntervalIter, CommonRefinementZip, CommonRefinementZipped,
+        ConcatenatedIter, IntoBinnedIntervalIter, UnionZip,
     },
+    partition::integer_interval_map::IntegerIntervalMap,
     set::traits::Finite,
     stats::correlation::weighted_correlation,
 };
@@ -16,7 +18,6 @@ use program_flow::{
 
 fn main() {
     let mut app = clap_app!(compute_track_correlation =>
-        (version: "0.1")
         (about: "Computes Pearson correlation between two tracks in BED format")
     );
     app = app
@@ -59,12 +60,21 @@ fn main() {
         first_track_filepath
     )));
 
+    println!(
+        "=> Constructing chrom interval map for {}",
+        first_track_filepath
+    );
     let chrom_interval_map_a = bed_a
         .get_chrom_to_interval_to_val::<f64, _>()
         .unwrap_or_exit(Some(format_args!(
             "failed to get chrom interval map for {}",
             first_track_filepath
         )));
+
+    println!(
+        "=> Constructing chrom interval map for {}",
+        second_track_filepath
+    );
     let chrom_interval_map_b = bed_b
         .get_chrom_to_interval_to_val::<f64, _>()
         .unwrap_or_exit(Some(format_args!(
@@ -72,34 +82,56 @@ fn main() {
             second_track_filepath
         )));
 
-    for (chrom, map_list) in chrom_interval_map_a
+    let extractor = |(interval, v): &(I64Interval, Vec<Option<f64>>)| -> (f64, f64, f64) {
+        (
+            v[0].unwrap_or(0.),
+            v[1].unwrap_or(0.),
+            1. / interval.size() as f64,
+        )
+    };
+
+    println!("=> Computing correlations");
+    let target_chroms = get_default_human_chrom_inclusion_set();
+    let chrom_correlations: Vec<(String, f64)> = chrom_interval_map_a
         .union_zip(&chrom_interval_map_b)
         .into_iter()
-    {
-        let interval_map_a = map_list[0].unwrap();
-        let interval_map_b = map_list[1].unwrap();
-        let vec: Vec<(I64Interval, Vec<Option<f64>>)> = match bin_size {
-            None => interval_map_a
-                .iter()
-                .common_refinement_zip(interval_map_b.iter())
-                .collect(),
-            Some(bin_size) => interval_map_a
-                .iter()
-                .into_binned_interval_iter(
-                    bin_size,
-                    AggregateOp::Sum,
-                    Box::new(|item| (*item.0, *item.1)),
-                )
-                .common_refinement_zip(interval_map_b.iter().into_binned_interval_iter(
-                    bin_size,
-                    AggregateOp::Sum,
-                    Box::new(|item| (*item.0, *item.1)),
-                ))
-                .collect(),
-        };
+        .filter_map(|(chrom, map_list)| {
+            if !target_chroms.contains(&chrom) {
+                println!("- skipping chromosome {}", chrom);
+                None
+            } else {
+                let interval_map_a = map_list[0].unwrap();
+                let interval_map_b = map_list[1].unwrap();
+                let vec: Vec<(I64Interval, Vec<Option<f64>>)> = match bin_size {
+                    None => map_a_common_refine_map_b(interval_map_a, interval_map_b).collect(),
+                    Some(bin_size) => {
+                        map_a_bin_map_b(interval_map_a, interval_map_b, bin_size).collect()
+                    }
+                };
+                Some((chrom, weighted_correlation(|| vec.iter(), extractor)))
+            }
+        })
+        .collect();
 
-        let correlation = weighted_correlation(
-            || vec.iter(),
+    let overall_correlation = match bin_size {
+        None => weighted_correlation(
+            || {
+                ConcatenatedIter::from_iters(
+                    chrom_interval_map_a
+                        .union_zip(&chrom_interval_map_b)
+                        .into_iter()
+                        .filter_map(|(chrom, map_list)| {
+                            if target_chroms.contains(&chrom) {
+                                let interval_map_a = map_list[0].unwrap();
+                                let interval_map_b = map_list[1].unwrap();
+                                Some(map_a_common_refine_map_b(interval_map_a, interval_map_b))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                )
+            },
             |(interval, v)| {
                 (
                     v[0].unwrap_or(0.),
@@ -107,7 +139,79 @@ fn main() {
                     1. / interval.size() as f64,
                 )
             },
-        );
-        println!("Pearson correlation: {:.5}", correlation);
+        ),
+        Some(bin_size) => weighted_correlation(
+            || {
+                ConcatenatedIter::from_iters(
+                    chrom_interval_map_a
+                        .union_zip(&chrom_interval_map_b)
+                        .into_iter()
+                        .filter_map(|(chrom, map_list)| {
+                            if target_chroms.contains(&chrom) {
+                                let interval_map_a = map_list[0].unwrap();
+                                let interval_map_b = map_list[1].unwrap();
+                                Some(map_a_bin_map_b(interval_map_a, interval_map_b, bin_size))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                )
+            },
+            |(interval, v)| {
+                (
+                    v[0].unwrap_or(0.),
+                    v[1].unwrap_or(0.),
+                    1. / interval.size() as f64,
+                )
+            },
+        ),
+    };
+
+    for (chrom, correlation) in chrom_correlations.iter() {
+        println!("{} Pearson correlation: {:.5}", chrom, correlation);
     }
+    println!("overall Pearson correlation: {:.5}", overall_correlation);
+}
+
+type CommonBtreeRefinement<'a> = CommonRefinementZipped<
+    i64,
+    std::collections::btree_map::Iter<'a, I64Interval, f64>,
+    (&'a I64Interval, &'a f64),
+    I64Interval,
+    f64,
+>;
+
+type CommonBinnedRefinement<'a> = CommonRefinementZipped<
+    i64,
+    BinnedIntervalIter<std::collections::btree_map::Iter<'a, I64Interval, f64>, f64>,
+    (I64Interval, f64),
+    I64Interval,
+    f64,
+>;
+
+fn map_a_common_refine_map_b<'a>(
+    map_a: &'a IntegerIntervalMap<f64>,
+    map_b: &'a IntegerIntervalMap<f64>,
+) -> CommonBtreeRefinement<'a> {
+    map_a.iter().common_refinement_zip(map_b.iter())
+}
+
+fn map_a_bin_map_b<'a>(
+    map_a: &'a IntegerIntervalMap<f64>,
+    map_b: &'a IntegerIntervalMap<f64>,
+    bin_size: i64,
+) -> CommonBinnedRefinement<'a> {
+    map_a
+        .iter()
+        .into_binned_interval_iter(
+            bin_size,
+            AggregateOp::Sum,
+            Box::new(|item| (*item.0, *item.1)),
+        )
+        .common_refinement_zip(map_b.iter().into_binned_interval_iter(
+            bin_size,
+            AggregateOp::Sum,
+            Box::new(|item| (*item.0, *item.1)),
+        ))
 }

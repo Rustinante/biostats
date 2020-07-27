@@ -10,7 +10,7 @@ repository = "https://github.com/Rustinante/biostats"
 [dependencies]
 biofile = "1.0.0"
 clap = "2.32.0"
-math = "0.8.1"
+math = "0.8.4"
 ndarray = {version = "0.12.1"}
 num = "0.2"
 program-flow = "0.1.1"
