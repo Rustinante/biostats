@@ -1,9 +1,13 @@
 use biostats::{
-    track_correlation::compute_track_correlations, util::get_default_human_chrom_inclusion_set,
+    track_correlation::{compute_track_correlations, ValueTransform},
+    util::get_default_human_chrom_inclusion_set,
 };
 use clap::{clap_app, Arg};
 use program_flow::{
-    argparse::{extract_optional_str_vec_arg, extract_str_arg},
+    argparse::{
+        extract_boolean_flag, extract_optional_numeric_arg, extract_optional_str_vec_arg,
+        extract_str_arg,
+    },
     debug_eprint_named_vars, eprint_named_vars, OrExit,
 };
 
@@ -34,9 +38,20 @@ fn main() {
                 .takes_value(true)
                 .multiple(true)
                 .long_help(
-                    "Group the base pairs into consecutive bins of size bin_size, aligned at
-                    index 0. A bin size of 0 means not to bin. A correlation will be computed for
-                    each value provided for --bin",
+                    "Group the base pairs into consecutive bins of size bin_size, \
+                    aligned at index 0. A bin size of 0 means not to bin. A correlation will be \
+                    computed for each provided bin value.",
+                ),
+        )
+        .arg(
+            Arg::with_name("threshold")
+                .long("threshold")
+                .short("t")
+                .takes_value(true)
+                .help(
+                    "Apply thresholding to the aggregate value at each base pair \
+                    x => sign(x) * min(|x|, threshold)) \
+                    Threshold must be positive",
                 ),
         );
     let matches = app.get_matches();
@@ -50,14 +65,24 @@ fn main() {
                 .unwrap_or_exit(Some(format_args!("failed to parse {}", &s)))
         })
         .collect();
-    eprint_named_vars!(first_track_filepath, second_track_filepath);
-    debug_eprint_named_vars!(bin_sizes);
+    let log_transform = extract_boolean_flag(&matches, "log_transform");
+    let threshold = extract_optional_numeric_arg(&matches, "threshold")
+        .unwrap_or_exit(Some("failed to parse threshold"));
+    eprint_named_vars!(first_track_filepath, second_track_filepath, log_transform);
+    debug_eprint_named_vars!(threshold, bin_sizes);
+
+    let transform_type = if let Some(t) = threshold {
+        ValueTransform::Thresholding(t)
+    } else {
+        ValueTransform::Identity
+    };
 
     let (chrom_correlations, overall_correlations) = compute_track_correlations(
         &first_track_filepath,
         &second_track_filepath,
         bin_sizes,
         get_default_human_chrom_inclusion_set(),
+        transform_type,
     )
     .unwrap_or_exit(Some("faild to compute track correlations"));
 

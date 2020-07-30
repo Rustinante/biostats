@@ -14,11 +14,11 @@ use std::collections::HashSet;
 /// The weight is the reciprocal of the interval size so as to produce the mean of the values in
 /// the interval. Each bin is considered a single entity of "weight" 1 when taking correlations.
 macro_rules! binned_extractor {
-    () => {
+    ($transform: expr, $transform_type: expr) => {
         |(interval, v)| {
             (
-                v[0].unwrap_or(0.),
-                v[1].unwrap_or(0.),
+                $transform(&interval, v[0].unwrap_or(0.), $transform_type),
+                $transform(&interval, v[1].unwrap_or(0.), $transform_type),
                 1. / interval.size() as f64,
             )
         }
@@ -28,11 +28,11 @@ macro_rules! binned_extractor {
 /// The weight is the size of the interval since each value has to be multiplied by the number of
 /// elements in the interval as the proper weighting in the correlation calculation.
 macro_rules! non_binned_extractor {
-    () => {
+    ($transform: expr, $transform_type: expr) => {
         |(interval, v)| {
             (
-                v[0].unwrap_or(0.),
-                v[1].unwrap_or(0.),
+                $transform(&interval, v[0].unwrap_or(0.), $transform_type),
+                $transform(&interval, v[1].unwrap_or(0.), $transform_type),
                 interval.size() as f64,
             )
         }
@@ -47,6 +47,7 @@ pub fn compute_track_correlations(
     second_track_filepath: &str,
     bin_sizes: Vec<i64>,
     target_chroms: HashSet<String>,
+    value_transform: ValueTransform,
 ) -> Result<(ChromCorrelations, OverallCorrelations), String> {
     let bed_a = Bed::new(&first_track_filepath);
     let bed_b = Bed::new(&second_track_filepath);
@@ -104,12 +105,18 @@ pub fn compute_track_correlations(
                     0 => {
                         let vec: Vec<(I64Interval, Vec<Option<f64>>)> =
                             a_common_refine_b(map_a, map_b).collect();
-                        weighted_correlation(|| vec.iter(), non_binned_extractor!())
+                        weighted_correlation(
+                            || vec.iter(),
+                            non_binned_extractor!(apply_transform, value_transform),
+                        )
                     }
                     non_zero => {
                         let vec: Vec<(I64Interval, Vec<Option<f64>>)> =
                             a_bin_b(map_a, map_b, non_zero).collect();
-                        weighted_correlation(|| vec.iter(), binned_extractor!())
+                        weighted_correlation(
+                            || vec.iter(),
+                            binned_extractor!(apply_transform, value_transform),
+                        )
                     }
                 })
                 .collect();
@@ -129,7 +136,7 @@ pub fn compute_track_correlations(
                             .collect(),
                     )
                 },
-                non_binned_extractor!(),
+                non_binned_extractor!(apply_transform, value_transform),
             ),
             non_zero => weighted_correlation(
                 || {
@@ -139,11 +146,38 @@ pub fn compute_track_correlations(
                             .collect(),
                     )
                 },
-                binned_extractor!(),
+                binned_extractor!(apply_transform, value_transform),
             ),
         })
         .collect();
     Ok((chrom_correlations, overall_correlations))
+}
+
+/// `Idenitty` does not change the value.
+/// `Log` transforms any value x into sign(x) * ln(|x| + 1)
+/// `Thresholding(t)` will restrict the absolute value to less than or equal to `t`.
+/// `LogThresholding(t)` will first apply the thresholding and then apply the log transform.
+#[derive(Copy, Clone, PartialEq)]
+pub enum ValueTransform {
+    Identity,
+    Thresholding(f64),
+}
+
+fn apply_transform(interval: &I64Interval, value: f64, transform: ValueTransform) -> f64 {
+    match transform {
+        ValueTransform::Identity => value,
+        ValueTransform::Thresholding(t) => {
+            let len = interval.size() as f64;
+            let avg_value = value / len;
+            if avg_value > t {
+                t * len
+            } else if avg_value < -t {
+                -t * len
+            } else {
+                value
+            }
+        }
+    }
 }
 
 type Boundary = i64;
