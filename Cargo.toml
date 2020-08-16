@@ -1,6 +1,6 @@
 [package]
 name = "biostats"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Aaron Zorel"]
 edition = "2018"
 license = "Apache-2.0"
@@ -10,7 +10,7 @@ repository = "https://github.com/Rustinante/biostats"
 [dependencies]
 biofile = "1.1.0"
 clap = "2.32.0"
-math = "0.8.4"
+math = "0.8.5"
 ndarray = {version = "0.12.1"}
 num = "0.2"
 program-flow = "0.1.3"
