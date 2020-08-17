@@ -97,7 +97,7 @@ fn main() {
         transform_type,
         exclude,
     )
-    .unwrap_or_exit(Some("faild to compute track correlations"));
+    .unwrap_or_exit(Some("failed to compute track correlations"));
 
     for (chrom, correlation) in chrom_correlations.iter() {
         print!("{}, ", chrom);
