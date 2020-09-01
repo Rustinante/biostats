@@ -26,7 +26,7 @@ pub fn generate_track_histograms(
     filter_chroms: Option<HashSet<Chrom>>,
 ) -> Result<(Histogram<Value>, HashMap<Chrom, Histogram<Value>>), String> {
     let bed = Bed::new(bed_track_filepath);
-    let chrom_interval_map = match bed.get_chrom_to_interval_to_val::<Value, _>() {
+    let chrom_interval_map = match bed.get_chrom_to_interval_to_val::<Value, _>(None) {
         Ok(map) => map,
         Err(why) => {
             return Err(format!(

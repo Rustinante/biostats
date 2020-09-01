@@ -48,15 +48,22 @@ pub fn compute_track_correlations(
     bin_sizes: Vec<i64>,
     target_chroms: HashSet<String>,
     value_transform: ValueTransform,
+    exclude_track_filepath: Option<String>,
 ) -> Result<(ChromCorrelations, OverallCorrelations), String> {
     let bed_a = Bed::new(&first_track_filepath);
     let bed_b = Bed::new(&second_track_filepath);
+    let exclude = if let Some(path) = exclude_track_filepath {
+        Some(Bed::new(&path).get_chrom_to_intervals())
+    } else {
+        None
+    };
 
     eprintln!(
         "=> Constructing chrom interval map for {}",
         first_track_filepath
     );
-    let chrom_interval_map_a = match bed_a.get_chrom_to_interval_to_val::<f64, _>() {
+    let chrom_interval_map_a = match bed_a.get_chrom_to_interval_to_val::<f64, _>(exclude.as_ref())
+    {
         Ok(bed) => bed,
         Err(why) => {
             return Err(format!(
@@ -70,7 +77,8 @@ pub fn compute_track_correlations(
         "=> Constructing chrom interval map for {}",
         second_track_filepath
     );
-    let chrom_interval_map_b = match bed_b.get_chrom_to_interval_to_val::<f64, _>() {
+    let chrom_interval_map_b = match bed_b.get_chrom_to_interval_to_val::<f64, _>(exclude.as_ref())
+    {
         Ok(bed) => bed,
         Err(why) => {
             return Err(format!(

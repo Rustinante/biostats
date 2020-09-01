@@ -5,8 +5,8 @@ use biostats::{
 use clap::{clap_app, Arg};
 use program_flow::{
     argparse::{
-        extract_boolean_flag, extract_optional_numeric_arg, extract_optional_str_vec_arg,
-        extract_str_arg,
+        extract_boolean_flag, extract_optional_numeric_arg, extract_optional_str_arg,
+        extract_optional_str_vec_arg, extract_str_arg,
     },
     debug_eprint_named_vars, eprint_named_vars, OrExit,
 };
@@ -23,14 +23,14 @@ fn main() {
                 .long("first")
                 .short("a")
                 .takes_value(true)
-                .help("filepath to the first track"),
+                .help("filepath to the first track."),
         )
         .arg(
             Arg::with_name("second_track_filepath")
                 .long("second")
                 .short("b")
                 .takes_value(true)
-                .help("filepath to the second track"),
+                .help("filepath to the second track."),
         )
         .arg(
             Arg::with_name("bin_size")
@@ -51,7 +51,18 @@ fn main() {
                 .help(
                     "Apply thresholding to the aggregate value at each base pair \
                     x => sign(x) * min(|x|, threshold)) \
-                    Threshold must be positive",
+                    Threshold must be positive.",
+                ),
+        )
+        .arg(
+            Arg::with_name("exclude")
+                .long("exclude")
+                .short("v")
+                .takes_value(true)
+                .help(
+                    "Path to a BED-like file where only the chromosome, start and end fields are \
+                    required. Lines from other BED files that overlap with any of the coordinates \
+                    in this 'exclude' file will be ignroed when computing correlations.",
                 ),
         );
     let matches = app.get_matches();
@@ -68,8 +79,9 @@ fn main() {
     let log_transform = extract_boolean_flag(&matches, "log_transform");
     let threshold = extract_optional_numeric_arg(&matches, "threshold")
         .unwrap_or_exit(Some("failed to parse threshold"));
+    let exclude = extract_optional_str_arg(&matches, "exclude");
     eprint_named_vars!(first_track_filepath, second_track_filepath, log_transform);
-    debug_eprint_named_vars!(threshold, bin_sizes);
+    debug_eprint_named_vars!(threshold, exclude, bin_sizes);
 
     let transform_type = if let Some(t) = threshold {
         ValueTransform::Thresholding(t)
@@ -83,6 +95,7 @@ fn main() {
         bin_sizes,
         get_default_human_chrom_inclusion_set(),
         transform_type,
+        exclude,
     )
     .unwrap_or_exit(Some("faild to compute track correlations"));
 
