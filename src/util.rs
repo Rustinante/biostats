@@ -18,7 +18,8 @@ pub fn get_default_human_chrom_inclusion_set() -> HashSet<String> {
 }
 
 pub fn extract_chrom_names(filepath: &str) -> Result<Vec<String>, io::Error> {
-    let buf_reader = BufReader::new(OpenOptions::new().read(true).open(filepath)?);
+    let buf_reader =
+        BufReader::new(OpenOptions::new().read(true).open(filepath)?);
     Ok(buf_reader
         .lines()
         .filter_map(|line| {

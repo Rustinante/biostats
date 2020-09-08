@@ -5,8 +5,9 @@ use biostats::{
 use clap::{clap_app, Arg};
 use program_flow::{
     argparse::{
-        extract_boolean_flag, extract_numeric_arg, extract_optional_numeric_arg,
-        extract_optional_str_arg, extract_str_arg,
+        extract_boolean_flag, extract_numeric_arg,
+        extract_optional_numeric_arg, extract_optional_str_arg,
+        extract_str_arg,
     },
     debug_eprint_named_vars, eprint_named_vars, OrExit,
 };
@@ -76,14 +77,17 @@ fn main() {
     let track_filepath = extract_str_arg(&matches, "track_filepath");
     let bin_size: i64 = extract_numeric_arg(&matches, "bin_size")
         .unwrap_or_exit(Some(format_args!("failed to parse --bin")));
-    let min =
-        extract_numeric_arg::<f64>(&matches, "min").unwrap_or_exit(Some("failed to parse --min"));
-    let max: f64 =
-        extract_numeric_arg(&matches, "max").unwrap_or_exit(Some("failed to parse --max"));
-    let num_histogram_buckets =
-        extract_optional_numeric_arg::<usize>(&matches, "num_histogram_buckets")
-            .unwrap_or_exit(Some("failed to parse --buckets"));
-    let default_human_chrom = extract_boolean_flag(&matches, "default_human_chrom");
+    let min = extract_numeric_arg::<f64>(&matches, "min")
+        .unwrap_or_exit(Some("failed to parse --min"));
+    let max: f64 = extract_numeric_arg(&matches, "max")
+        .unwrap_or_exit(Some("failed to parse --max"));
+    let num_histogram_buckets = extract_optional_numeric_arg::<usize>(
+        &matches,
+        "num_histogram_buckets",
+    )
+    .unwrap_or_exit(Some("failed to parse --buckets"));
+    let default_human_chrom =
+        extract_boolean_flag(&matches, "default_human_chrom");
     let filter_chrom = extract_optional_str_arg(&matches, "filter_chrom");
 
     eprint_named_vars!(track_filepath, bin_size, min, max, default_human_chrom);
@@ -120,7 +124,8 @@ fn main() {
         filter_chroms,
     )
     .unwrap_or_exit(Some("failed to generate the histogram"));
-    let mut keys: Vec<String> = chrom_to_histogram.keys().map(|s| s.to_string()).collect();
+    let mut keys: Vec<String> =
+        chrom_to_histogram.keys().map(|s| s.to_string()).collect();
     keys.sort();
     println!("Per-chromosome histograms:");
     for chrom in keys.iter() {

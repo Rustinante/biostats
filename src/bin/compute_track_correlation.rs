@@ -5,8 +5,9 @@ use biostats::{
 use clap::{clap_app, Arg};
 use program_flow::{
     argparse::{
-        extract_boolean_flag, extract_optional_numeric_arg, extract_optional_str_arg,
-        extract_optional_str_vec_arg, extract_str_arg,
+        extract_boolean_flag, extract_optional_numeric_arg,
+        extract_optional_str_arg, extract_optional_str_vec_arg,
+        extract_str_arg,
     },
     debug_eprint_named_vars, eprint_named_vars, OrExit,
 };
@@ -66,21 +67,30 @@ fn main() {
                 ),
         );
     let matches = app.get_matches();
-    let first_track_filepath = extract_str_arg(&matches, "first_track_filepath");
-    let second_track_filepath = extract_str_arg(&matches, "second_track_filepath");
-    let bin_sizes: Vec<i64> = extract_optional_str_vec_arg(&matches, "bin_size")
-        .unwrap_or_else(|| vec![ZERO_BIN_SIZE_STR.to_string()])
-        .into_iter()
-        .map(|s| {
-            s.parse::<i64>()
-                .unwrap_or_exit(Some(format_args!("failed to parse {}", &s)))
-        })
-        .collect();
+    let first_track_filepath =
+        extract_str_arg(&matches, "first_track_filepath");
+    let second_track_filepath =
+        extract_str_arg(&matches, "second_track_filepath");
+    let bin_sizes: Vec<i64> =
+        extract_optional_str_vec_arg(&matches, "bin_size")
+            .unwrap_or_else(|| vec![ZERO_BIN_SIZE_STR.to_string()])
+            .into_iter()
+            .map(|s| {
+                s.parse::<i64>().unwrap_or_exit(Some(format_args!(
+                    "failed to parse {}",
+                    &s
+                )))
+            })
+            .collect();
     let log_transform = extract_boolean_flag(&matches, "log_transform");
     let threshold = extract_optional_numeric_arg(&matches, "threshold")
         .unwrap_or_exit(Some("failed to parse threshold"));
     let exclude = extract_optional_str_arg(&matches, "exclude");
-    eprint_named_vars!(first_track_filepath, second_track_filepath, log_transform);
+    eprint_named_vars!(
+        first_track_filepath,
+        second_track_filepath,
+        log_transform
+    );
     debug_eprint_named_vars!(threshold, exclude, bin_sizes);
 
     let transform_type = if let Some(t) = threshold {
@@ -89,15 +99,16 @@ fn main() {
         ValueTransform::Identity
     };
 
-    let (chrom_correlations, overall_correlations) = compute_track_correlations(
-        &first_track_filepath,
-        &second_track_filepath,
-        bin_sizes,
-        get_default_human_chrom_inclusion_set(),
-        transform_type,
-        exclude,
-    )
-    .unwrap_or_exit(Some("failed to compute track correlations"));
+    let (chrom_correlations, overall_correlations) =
+        compute_track_correlations(
+            &first_track_filepath,
+            &second_track_filepath,
+            bin_sizes,
+            get_default_human_chrom_inclusion_set(),
+            transform_type,
+            exclude,
+        )
+        .unwrap_or_exit(Some("failed to compute track correlations"));
 
     for (chrom, correlation) in chrom_correlations.iter() {
         print!("{}, ", chrom);
