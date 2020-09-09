@@ -41,6 +41,7 @@ fn test_with_identical_track() {
             vec![0, 1, 5, 17],
             chroms,
             ValueTransform::Identity,
+            None,
         )
         .unwrap();
 
