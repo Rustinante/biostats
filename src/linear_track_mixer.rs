@@ -56,7 +56,7 @@ impl TrackZipper {
 
     pub fn to_linear_track_mixer(
         &self,
-        target_chroms: &HashSet<Chrom>,
+        target_chroms: Option<&HashSet<Chrom>>,
         bin_size: i64,
     ) -> Result<LinearTrackMixer, biofile::error::Error> {
         let chrom_to_binned_values: HashMap<
@@ -75,7 +75,7 @@ impl TrackZipper {
 
     pub fn chrom_to_binned_zipped_values(
         &self,
-        target_chroms: &HashSet<Chrom>,
+        target_chroms: Option<&HashSet<Chrom>>,
         bin_size: i64,
     ) -> Result<
         HashMap<Chrom, Vec<(I64Interval, Vec<Option<Value>>)>>,
@@ -260,7 +260,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-        let mixer = zipper.to_linear_track_mixer(&target_chroms, 50).unwrap();
+        let mixer = zipper.to_linear_track_mixer(Some(&target_chroms), 50).unwrap();
         let mixed_bed_path = NamedTempFile::new().unwrap().into_temp_path();
         mixer
             .write_to_bed_file(mixed_bed_path.to_str().unwrap())
