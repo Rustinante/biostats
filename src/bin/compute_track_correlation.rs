@@ -11,12 +11,14 @@ use program_flow::{
     },
     debug_eprint_named_vars, eprint_named_vars, OrExit,
 };
+use std::{collections::HashSet, iter::FromIterator};
 
 const ZERO_BIN_SIZE_STR: &str = "0";
 
 fn main() {
     let mut app = clap_app!(compute_track_correlation =>
-        (about: "Computes the Pearson correlation between two tracks stored in BED format")
+        (about: "Computes the Pearson correlation between two tracks stored in \
+        BED format")
     );
     app = app
         .arg(
@@ -39,9 +41,32 @@ fn main() {
                 .takes_value(true)
                 .multiple(true)
                 .long_help(
-                    "Group the base pairs into consecutive bins of size bin_size, \
-                    aligned at index 0. A bin size of 0 means not to bin. A correlation will be \
-                    computed for each provided bin value.",
+                    "Group the base pairs into consecutive bins of size \
+                    bin_size, aligned at index 0. A bin size of 0 means not to \
+                    bin. A correlation will be computed for each provided bin \
+                    value.",
+                ),
+        )
+        .arg(
+            Arg::with_name("chroms")
+                .long("chroms")
+                .short("c")
+                .takes_value(true)
+                .multiple(true)
+                .long_help(
+                    "Only process the specified chromosome. Specify this \
+                    multiple times if you want to restrict to multiple \
+                    chromosomes, e.g., --chroms chr1 --chroms chr2",
+                ),
+        )
+        .arg(
+            Arg::with_name("default_human_chroms")
+                .long("default-human-chrom")
+                .short("d")
+                .conflicts_with("chroms")
+                .help(
+                    "Only computes histograms for chromosome chr1, chr2, ... \
+                    chr22, chrX, chrY.",
                 ),
         )
         .arg(
@@ -50,7 +75,8 @@ fn main() {
                 .short("t")
                 .takes_value(true)
                 .help(
-                    "Apply thresholding to the aggregate value at each base pair \
+                    "Apply thresholding to the aggregate value x at each base \
+                    pair, while preserving the sign, i.e., \
                     x => sign(x) * min(|x|, threshold)) \
                     Threshold must be positive.",
                 ),
@@ -61,9 +87,10 @@ fn main() {
                 .short("v")
                 .takes_value(true)
                 .help(
-                    "Path to a BED-like file where only the chromosome, start and end fields are \
-                    required. Lines from other BED files that overlap with any of the coordinates \
-                    in this 'exclude' file will be ignroed when computing correlations.",
+                    "Path to a BED-like file where only the chromosome, start \
+                    and end fields are required. Lines from other BED files \
+                    that overlap with any of the coordinates in this 'exclude' \
+                    file will be ignroed when computing correlations.",
                 ),
         );
     let matches = app.get_matches();
@@ -82,6 +109,11 @@ fn main() {
                 )))
             })
             .collect();
+    let chroms = extract_optional_str_vec_arg(&matches, "chroms");
+
+    let default_human_chroms =
+        extract_boolean_flag(&matches, "default_human_chroms");
+
     let log_transform = extract_boolean_flag(&matches, "log_transform");
     let threshold = extract_optional_numeric_arg(&matches, "threshold")
         .unwrap_or_exit(Some("failed to parse threshold"));
@@ -89,9 +121,30 @@ fn main() {
     eprint_named_vars!(
         first_track_filepath,
         second_track_filepath,
+        default_human_chroms,
         log_transform
     );
-    debug_eprint_named_vars!(threshold, exclude, bin_sizes);
+    debug_eprint_named_vars!(threshold, exclude, bin_sizes, chroms);
+
+    let target_chroms = match chroms {
+        Some(chroms) => {
+            if default_human_chroms {
+                eprintln!(
+                    "at most one of chroms and default_human_chroms can be specified"
+                );
+                std::process::exit(1);
+            } else {
+                Some(HashSet::from_iter(chroms.into_iter()))
+            }
+        }
+        None => {
+            if default_human_chroms {
+                Some(get_default_human_chrom_inclusion_set())
+            } else {
+                None
+            }
+        }
+    };
 
     let transform_type = if let Some(t) = threshold {
         ValueTransform::Thresholding(t)
@@ -104,7 +157,7 @@ fn main() {
             &first_track_filepath,
             &second_track_filepath,
             bin_sizes,
-            get_default_human_chrom_inclusion_set(),
+            target_chroms,
             transform_type,
             exclude,
         )

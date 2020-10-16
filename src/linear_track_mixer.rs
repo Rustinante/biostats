@@ -260,7 +260,9 @@ mod tests {
                 .into_iter()
                 .collect();
 
-        let mixer = zipper.to_linear_track_mixer(Some(&target_chroms), 50).unwrap();
+        let mixer = zipper
+            .to_linear_track_mixer(Some(&target_chroms), 50)
+            .unwrap();
         let mixed_bed_path = NamedTempFile::new().unwrap().into_temp_path();
         mixer
             .write_to_bed_file(mixed_bed_path.to_str().unwrap())

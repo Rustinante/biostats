@@ -49,7 +49,7 @@ pub fn compute_track_correlations(
     first_track_filepath: &str,
     second_track_filepath: &str,
     bin_sizes: Vec<i64>,
-    target_chroms: HashSet<String>,
+    target_chroms: Option<HashSet<String>>,
     value_transform: ValueTransform,
     exclude_track_filepath: Option<String>,
 ) -> Result<(ChromCorrelations, OverallCorrelations), String> {
@@ -72,7 +72,7 @@ pub fn compute_track_correlations(
                 return Err(format!(
                     "failed to get chrom interval map for {}: {}",
                     first_track_filepath, why
-                ))
+                ));
             }
         };
 
@@ -87,7 +87,7 @@ pub fn compute_track_correlations(
                 return Err(format!(
                     "failed to get chrom interval map for {}: {}",
                     second_track_filepath, why
-                ))
+                ));
             }
         };
 
@@ -97,7 +97,9 @@ pub fn compute_track_correlations(
             .union_zip(&chrom_interval_map_b)
             .into_iter()
             .filter_map(|(chrom, map_list)| {
-                if target_chroms.contains(&chrom) {
+                if target_chroms.is_none()
+                    || target_chroms.as_ref().unwrap().contains(&chrom)
+                {
                     let interval_map_a =
                         map_list[0].unwrap_or_else(|| &empty_interval_map);
                     let interval_map_b =
