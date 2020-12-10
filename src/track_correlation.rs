@@ -49,14 +49,16 @@ pub fn compute_track_correlations(
     first_track_filepath: &str,
     second_track_filepath: &str,
     bin_sizes: Vec<i64>,
+    binarize_score: bool,
     target_chroms: Option<HashSet<String>>,
     value_transform: ValueTransform,
     exclude_track_filepath: Option<String>,
 ) -> Result<(ChromCorrelations, OverallCorrelations), String> {
-    let bed_a = Bed::new(&first_track_filepath);
-    let bed_b = Bed::new(&second_track_filepath);
+    let bed_a = Bed::new(&first_track_filepath, binarize_score);
+    let bed_b = Bed::new(&second_track_filepath, binarize_score);
     let exclude = if let Some(path) = exclude_track_filepath {
-        Some(Bed::new(&path).get_chrom_to_intervals())
+        // binarize_score is irrelevant for getting the intervals
+        Some(Bed::new(&path, false).get_chrom_to_intervals())
     } else {
         None
     };

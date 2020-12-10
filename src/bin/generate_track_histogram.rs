@@ -36,6 +36,14 @@ fn main() {
                 ),
         )
         .arg(
+            Arg::with_name("binarize_score")
+                .long("binarize")
+                .help(
+                    "Each line in the original BED files will contribute a \
+                    unit score for the corresponding interval",
+                ),
+        )
+        .arg(
             Arg::with_name("min")
                 .long("min")
                 .takes_value(true)
@@ -77,10 +85,15 @@ fn main() {
     let track_filepath = extract_str_arg(&matches, "track_filepath");
     let bin_size: i64 = extract_numeric_arg(&matches, "bin_size")
         .unwrap_or_exit(Some(format_args!("failed to parse --bin")));
+
+    let binarize_score = extract_boolean_flag(&matches, "binarize_score");
+
     let min = extract_numeric_arg::<f64>(&matches, "min")
         .unwrap_or_exit(Some("failed to parse --min"));
+
     let max: f64 = extract_numeric_arg(&matches, "max")
         .unwrap_or_exit(Some("failed to parse --max"));
+
     let num_histogram_buckets = extract_optional_numeric_arg::<usize>(
         &matches,
         "num_histogram_buckets",
@@ -121,6 +134,7 @@ fn main() {
         min,
         max,
         bin_size,
+        binarize_score,
         filter_chroms,
     )
     .unwrap_or_exit(Some("failed to generate the histogram"));

@@ -55,6 +55,10 @@ fn main() {
                     base pair in the bin.",
                 ),
         )
+        .arg(Arg::with_name("binarize_score").long("binarize").help(
+            "Each line in the original BED files will contribute a \
+                    unit score for the corresponding interval",
+        ))
         .arg(
             Arg::with_name("exclude")
                 .long("exclude")
@@ -88,6 +92,8 @@ fn main() {
         .parse::<i64>()
         .unwrap_or_exit(Some(format_args!("failed to parse bin_size")));
 
+    let binarize_score = extract_boolean_flag(&matches, "binarize_score");
+
     let exclude = extract_optional_str_arg(&matches, "exclude");
     let default_human_chrom =
         extract_boolean_flag(&matches, "default_human_chrom");
@@ -96,6 +102,7 @@ fn main() {
         weighted_tracks_filepath,
         out_path,
         bin_size,
+        binarize_score,
         default_human_chrom
     );
     debug_eprint_named_vars!(exclude);
@@ -111,7 +118,7 @@ fn main() {
         get_weighted_track_paths(&weighted_tracks_filepath)
             .unwrap_or_exit(Some("failed to read the weighted tracks file."))
             .into_iter()
-            .map(|(weight, path)| (weight, Bed::new(&path)))
+            .map(|(weight, path)| (weight, Bed::new(&path, binarize_score)))
             .collect();
 
     let zipper =

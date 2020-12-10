@@ -24,9 +24,10 @@ pub fn generate_track_histograms(
     min: f64,
     max: f64,
     bin_size: i64,
+    binarize_score: bool,
     filter_chroms: Option<HashSet<Chrom>>,
 ) -> Result<(Histogram<Value>, HashMap<Chrom, Histogram<Value>>), String> {
-    let bed = Bed::new(bed_track_filepath);
+    let bed = Bed::new(bed_track_filepath, binarize_score);
     let chrom_interval_map =
         match bed.get_chrom_to_interval_to_val::<Value, _>(None) {
             Ok(map) => map,

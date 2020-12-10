@@ -47,6 +47,10 @@ fn main() {
                     value.",
                 ),
         )
+        .arg(Arg::with_name("binarize_score").long("binarize").help(
+            "Each line in the original BED files will contribute a \
+                    unit score for the corresponding interval",
+        ))
         .arg(
             Arg::with_name("chroms")
                 .long("chroms")
@@ -96,8 +100,10 @@ fn main() {
     let matches = app.get_matches();
     let first_track_filepath =
         extract_str_arg(&matches, "first_track_filepath");
+
     let second_track_filepath =
         extract_str_arg(&matches, "second_track_filepath");
+
     let bin_sizes: Vec<i64> =
         extract_optional_str_vec_arg(&matches, "bin_size")
             .unwrap_or_else(|| vec![ZERO_BIN_SIZE_STR.to_string()])
@@ -109,7 +115,10 @@ fn main() {
                 )))
             })
             .collect();
+
     let chroms = extract_optional_str_vec_arg(&matches, "chroms");
+
+    let binarize_score = extract_boolean_flag(&matches, "binarize_score");
 
     let default_human_chroms =
         extract_boolean_flag(&matches, "default_human_chroms");
@@ -121,6 +130,7 @@ fn main() {
     eprint_named_vars!(
         first_track_filepath,
         second_track_filepath,
+        binarize_score,
         default_human_chroms,
         log_transform
     );
@@ -157,6 +167,7 @@ fn main() {
             &first_track_filepath,
             &second_track_filepath,
             bin_sizes,
+            binarize_score,
             target_chroms,
             transform_type,
             exclude,

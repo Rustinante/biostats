@@ -31,7 +31,8 @@ impl TrackZipper {
         exclude_track_filepath: Option<&str>,
     ) -> Result<Self, biofile::error::Error> {
         let exclude = if let Some(path) = exclude_track_filepath {
-            Some(Bed::new(path).get_chrom_to_intervals())
+            // binarize_score is irrelevant for getting the intervals
+            Some(Bed::new(path, false).get_chrom_to_intervals())
         } else {
             None
         };
@@ -248,8 +249,8 @@ mod tests {
 
         let zipper = TrackZipper::new(
             vec![
-                (0.4, Bed::new(bed_1_path.to_str().unwrap())),
-                (0.6, Bed::new(bed_2_path.to_str().unwrap())),
+                (0.4, Bed::new(bed_1_path.to_str().unwrap(), false)),
+                (0.6, Bed::new(bed_2_path.to_str().unwrap(), fale)),
             ],
             None,
         )
@@ -267,7 +268,7 @@ mod tests {
         mixer
             .write_to_bed_file(mixed_bed_path.to_str().unwrap())
             .unwrap();
-        let mixed_bed = Bed::new(mixed_bed_path.to_str().unwrap());
+        let mixed_bed = Bed::new(mixed_bed_path.to_str().unwrap(), false);
         let x = mixed_bed
             .get_chrom_to_interval_to_val::<f64, _>(None)
             .unwrap();
