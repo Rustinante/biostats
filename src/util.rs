@@ -11,6 +11,30 @@ use std::{
     io::{BufRead, BufReader},
 };
 
+#[macro_export]
+macro_rules! assert_almost_eq {
+    ($a:expr, $b:expr) => {
+        assert!(($a - $b).abs() < 1e-8);
+    };
+    ($a:expr, $b:expr, $epsilon:expr) => {
+        assert!(($a - $b).abs() < $epsilon);
+    };
+}
+
+#[macro_export]
+macro_rules! assert_vec_almost_eq {
+    ($a:expr, $b:expr) => {
+        for (x, y) in $a.iter().zip($b.iter()) {
+            assert!((x - y).abs() < 1e-8);
+        }
+    };
+    ($a:expr, $b:expr, $epsilon:expr) => {
+        for (x, y) in $a.iter().zip($b.iter()) {
+            assert!((x - y).abs() < $epsilon);
+        }
+    };
+}
+
 /// Returns chr1 to chr22 inclusive, together with chrX and chrY.
 pub fn get_default_human_chrom_inclusion_set() -> HashSet<String> {
     let mut chrom_list: HashSet<String> = (1..=22)
@@ -45,16 +69,31 @@ pub fn get_weighted_track_paths(
     let buf_reader =
         BufReader::new(OpenOptions::new().read(true).open(filepath)?);
 
-    Ok(buf_reader.lines().filter_map(|line| {
-        let tokens: Vec<String> = line.unwrap().trim().split_whitespace().map(|s| s.to_string()).collect();
-        if tokens.is_empty() {
-        None
-        } else {
-            assert_eq!(tokens.len(), 2, "Each field in teh weighted tracks file must have exactly two fields, received");
-            let weight = tokens[0].parse::<f64>().expect("failed to parse the weight");
-            Some((weight, tokens[1].clone()))
-        }
-    }).collect())
+    Ok(buf_reader
+        .lines()
+        .filter_map(|line| {
+            let tokens: Vec<String> = line
+                .unwrap()
+                .trim()
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect();
+            if tokens.is_empty() {
+                None
+            } else {
+                assert_eq!(
+                    tokens.len(),
+                    2,
+                    "Each field in the weighted tracks \
+                    file must have exactly two fields"
+                );
+                let weight = tokens[0]
+                    .parse::<f64>()
+                    .expect("failed to parse the weight");
+                Some((weight, tokens[1].clone()))
+            }
+        })
+        .collect())
 }
 
 ///

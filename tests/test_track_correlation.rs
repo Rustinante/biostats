@@ -1,29 +1,8 @@
-use biostats::track_correlation::{compute_track_correlations, ValueTransform};
+use biostats::{
+    assert_vec_almost_eq,
+    track_correlation::{compute_track_correlations, ValueTransform},
+};
 use std::{collections::HashSet, path::PathBuf};
-
-const EPSILON: f64 = 1e-8;
-
-macro_rules! assert_almost_eq {
-    ($a:expr, $b:expr) => {
-        assert!(($a - $b).abs() < EPSILON);
-    };
-    ($a:expr, $b:expr, $epsilon:expr) => {
-        assert!(($a - $b).abs() < $epsilon);
-    };
-}
-
-macro_rules! assert_vec_almost_eq {
-    ($a:expr, $b:expr) => {
-        for (x, y) in $a.iter().zip($b.iter()) {
-            assert_almost_eq!(x, y, EPSILON);
-        }
-    };
-    ($a:expr, $b:expr, $epsilon:expr) => {
-        for (x, y) in $a.iter().zip($b.iter()) {
-            assert_almost_eq!(x, y, $epsilon);
-        }
-    };
-}
 
 fn get_bed_path(filename: &str) -> PathBuf {
     let mut path = std::env::current_dir().unwrap();
