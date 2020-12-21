@@ -1,72 +1,40 @@
-use biofile::bed::{Bed, BedDataLine, BedWriter, Chrom};
-use math::{
-    interval::{traits::Interval, I64Interval},
-    iter::{AggregateOp, CommonRefinementZip, IntoBinnedIntervalIter},
-    partition::integer_interval_map::IntegerIntervalMap,
-};
+use crate::track_zipper::TrackZipper;
+use biofile::bed::{BedDataLine, BedWriter, Chrom};
+use math::interval::{traits::Interval, I64Interval};
 use std::collections::{HashMap, HashSet};
 
-type Coeficient = f64;
+type Coefficient = f64;
 type Value = f64;
-
-pub struct TrackZipper {
-    weighted_bed_files: Vec<(Coeficient, Bed)>,
-    list_of_chrom_interval_maps: Vec<HashMap<Chrom, IntegerIntervalMap<Value>>>,
-}
 
 pub struct LinearTrackMixer {
     chrom_to_binned_values:
         HashMap<Chrom, Vec<(I64Interval, Vec<Option<Value>>)>>,
-    weights: Vec<Coeficient>,
+    weights: Vec<Coefficient>,
 }
 
 pub struct LinearTrackMixerIter<'a> {
     binned_values_iter: std::slice::Iter<'a, (I64Interval, Vec<Option<Value>>)>,
-    weights: &'a Vec<Coeficient>,
+    weights: &'a Vec<Coefficient>,
 }
 
-impl TrackZipper {
-    pub fn new(
-        weighted_bed_files: Vec<(Coeficient, Bed)>,
-        exclude_track_filepath: Option<&str>,
-    ) -> Result<Self, biofile::error::Error> {
-        let exclude = if let Some(path) = exclude_track_filepath {
-            // binarize_score is irrelevant for getting the intervals
-            Some(Bed::new(path, false).get_chrom_to_intervals())
-        } else {
-            None
-        };
-
-        let list_of_chrom_interval_maps: Vec<
-            HashMap<Chrom, IntegerIntervalMap<Value>>,
-        > = weighted_bed_files
-            .iter()
-            .map(|(_weight, bed)| {
-                bed.get_chrom_to_interval_to_val(exclude.as_ref())
-            })
-            .collect::<Result<
-                Vec<HashMap<Chrom, IntegerIntervalMap<Value>>>,
-                biofile::error::Error,
-            >>()?;
-
-        Ok(TrackZipper {
-            weighted_bed_files,
-            list_of_chrom_interval_maps,
-        })
-    }
-
-    pub fn to_linear_track_mixer(
-        &self,
+impl LinearTrackMixer {
+    pub fn from_track_zipper(
+        zipper: TrackZipper,
+        weights: Vec<Coefficient>,
         target_chroms: Option<&HashSet<Chrom>>,
         bin_size: i64,
     ) -> Result<LinearTrackMixer, biofile::error::Error> {
+        if zipper.num_tracks() != weights.len() {
+            return Err(biofile::error::Error::Generic(format!(
+                "number of track in the zipper: {} != number of weights: {}",
+                zipper.num_tracks(),
+                weights.len()
+            )));
+        }
         let chrom_to_binned_values: HashMap<
             Chrom,
             Vec<(I64Interval, Vec<Option<Value>>)>,
-        > = self.chrom_to_binned_zipped_values(target_chroms, bin_size)?;
-
-        let weights: Vec<Coeficient> =
-            self.weighted_bed_files.iter().map(|(w, _)| *w).collect();
+        > = zipper.chrom_to_binned_zipped_values(target_chroms, bin_size)?;
 
         Ok(LinearTrackMixer {
             chrom_to_binned_values,
@@ -74,64 +42,6 @@ impl TrackZipper {
         })
     }
 
-    pub fn chrom_to_binned_zipped_values(
-        &self,
-        target_chroms: Option<&HashSet<Chrom>>,
-        bin_size: i64,
-    ) -> Result<
-        HashMap<Chrom, Vec<(I64Interval, Vec<Option<Value>>)>>,
-        biofile::error::Error,
-    > {
-        let empty_interval_map = IntegerIntervalMap::new();
-        let union_zipped_chrom_interval_maps: HashMap<
-            Chrom,
-            Vec<&IntegerIntervalMap<Value>>,
-        > = crate::util::get_union_zipped_chrom_interval_maps(
-            self.list_of_chrom_interval_maps.iter().collect(),
-            target_chroms,
-            &empty_interval_map,
-        );
-        let chroms =
-            crate::util::get_sorted_keys(&union_zipped_chrom_interval_maps);
-
-        Ok(chroms
-            .into_iter()
-            .map(|chrom| {
-                let interval_maps = &union_zipped_chrom_interval_maps[&chrom];
-
-                let binned_values: Vec<(I64Interval, Vec<Option<Value>>)> =
-                    interval_maps
-                        .iter()
-                        .skip(1)
-                        .fold(
-                            interval_maps
-                                .first()
-                                .expect("interval maps cannot be empty")
-                                .iter()
-                                .into_binned_interval_iter(
-                                    bin_size,
-                                    AggregateOp::Average,
-                                    Box::new(|item| (*item.0, *item.1)),
-                                )
-                                .into_common_refinement_zipped(),
-                            |common_refinement, map| {
-                                common_refinement.common_refinement_flat_zip(
-                                    map.iter().into_binned_interval_iter(
-                                        bin_size,
-                                        AggregateOp::Average,
-                                        Box::new(|item| (*item.0, *item.1)),
-                                    ),
-                                )
-                            },
-                        )
-                        .collect();
-                (chrom, binned_values)
-            })
-            .collect())
-    }
-}
-
-impl LinearTrackMixer {
     pub fn write_to_bed_file(
         &self,
         path: &str,
@@ -185,7 +95,10 @@ impl<'a> Iterator for LinearTrackMixerIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::linear_track_mixer::{LinearTrackMixerIter, TrackZipper};
+    use crate::{
+        linear_track_mixer::{LinearTrackMixer, LinearTrackMixerIter},
+        track_zipper::TrackZipper,
+    };
     use biofile::bed::Bed;
     use math::interval::I64Interval;
     use std::{
@@ -249,8 +162,8 @@ mod tests {
 
         let zipper = TrackZipper::new(
             vec![
-                (0.4, Bed::new(bed_1_path.to_str().unwrap(), false)),
-                (0.6, Bed::new(bed_2_path.to_str().unwrap(), fale)),
+                Bed::new(bed_1_path.to_str().unwrap(), false),
+                Bed::new(bed_2_path.to_str().unwrap(), false),
             ],
             None,
         )
@@ -261,9 +174,13 @@ mod tests {
                 .into_iter()
                 .collect();
 
-        let mixer = zipper
-            .to_linear_track_mixer(Some(&target_chroms), 50)
-            .unwrap();
+        let mixer = LinearTrackMixer::from_track_zipper(
+            zipper,
+            vec![0.4, 0.6],
+            Some(&target_chroms),
+            50,
+        )
+        .unwrap();
         let mixed_bed_path = NamedTempFile::new().unwrap().into_temp_path();
         mixer
             .write_to_bed_file(mixed_bed_path.to_str().unwrap())

@@ -39,6 +39,7 @@ fn test_with_identical_track() {
             get_bed_path("tests/test_1.bed").to_str().unwrap(),
             get_bed_path("tests/test_2.bed").to_str().unwrap(),
             vec![0, 1, 5, 17],
+            false,
             Some(chroms),
             ValueTransform::Identity,
             None,
