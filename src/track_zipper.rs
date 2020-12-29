@@ -143,7 +143,7 @@ impl TrackZipper {
                 for v in values.iter() {
                     write!(&mut writer, " {}", v.unwrap_or(0.))?;
                 }
-                write!(&mut writer, "\n")?;
+                writeln!(&mut writer,)?;
             }
         }
         Ok(())

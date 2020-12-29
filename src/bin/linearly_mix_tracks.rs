@@ -1,7 +1,5 @@
-use biofile::bed::Bed;
 use biostats::{
-    linear_track_mixer::LinearTrackMixer,
-    track_zipper::TrackZipper,
+    linear_track_mixture::LinearTrackMixture,
     util::{get_default_human_chrom_inclusion_set, get_weighted_track_paths},
 };
 use clap::{clap_app, Arg};
@@ -108,41 +106,26 @@ fn main() {
     );
     debug_eprint_named_vars!(exclude);
 
-    let human_chrom_inclusion_set = get_default_human_chrom_inclusion_set();
     let target_chroms = if default_human_chrom {
-        Some(&human_chrom_inclusion_set)
+        Some(get_default_human_chrom_inclusion_set())
     } else {
         None
     };
 
-    let weighted_bed_files: Vec<(f64, Bed)> =
+    let weighted_bed_files: Vec<(f64, String)> =
         get_weighted_track_paths(&weighted_tracks_filepath)
-            .unwrap_or_exit(Some("failed to read the weighted tracks file."))
-            .into_iter()
-            .map(|(weight, path)| (weight, Bed::new(&path, binarize_score)))
-            .collect();
+            .unwrap_or_exit(Some("failed to read the weighted tracks file."));
 
-    let weights: Vec<f64> =
-        weighted_bed_files.iter().map(|(w, _)| *w).collect();
-
-    let zipper = TrackZipper::new(
-        weighted_bed_files
-            .into_iter()
-            .map(|(_w, bed)| bed)
-            .collect(),
-        exclude.as_deref(),
-    )
-    .unwrap();
-
-    let mixer = LinearTrackMixer::from_track_zipper(
-        zipper,
-        weights,
-        target_chroms,
+    let mixture = LinearTrackMixture::create(
+        weighted_bed_files,
         bin_size,
+        binarize_score,
+        exclude,
+        target_chroms,
     )
-    .unwrap_or_exit(Some("failed to create the linear track mixer"));
+    .unwrap_or_exit(Some("failed to linearly mix the tracks"));
 
-    mixer
+    mixture
         .write_to_bed_file(&out_path)
         .unwrap_or_exit(Some("failed to write to the output file"));
 }
