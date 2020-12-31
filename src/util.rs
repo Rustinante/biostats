@@ -24,11 +24,13 @@ macro_rules! assert_almost_eq {
 #[macro_export]
 macro_rules! assert_vec_almost_eq {
     ($a:expr, $b:expr) => {
+        assert_eq!($a.len(), $b.len());
         for (x, y) in $a.iter().zip($b.iter()) {
             assert!((x - y).abs() < 1e-8);
         }
     };
     ($a:expr, $b:expr, $epsilon:expr) => {
+        assert_eq!($a.len(), $b.len());
         for (x, y) in $a.iter().zip($b.iter()) {
             assert!((x - y).abs() < $epsilon);
         }

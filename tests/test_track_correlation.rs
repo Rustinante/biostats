@@ -1,7 +1,4 @@
-use biostats::{
-    assert_vec_almost_eq,
-    track_correlation::{compute_track_correlations, ValueTransform},
-};
+use biostats::{assert_vec_almost_eq, track_correlation::ValueTransform};
 use std::{collections::HashSet, path::PathBuf};
 
 fn get_bed_path(filename: &str) -> PathBuf {
@@ -14,7 +11,7 @@ fn get_bed_path(filename: &str) -> PathBuf {
 fn test_with_identical_track() {
     let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
     let (chrom_correlations, overall_correlations) =
-        compute_track_correlations(
+        biostats::track_correlation::compute_track_correlations(
             get_bed_path("tests/test_1.bed").to_str().unwrap(),
             get_bed_path("tests/test_2.bed").to_str().unwrap(),
             vec![0, 1, 5, 17],
@@ -31,14 +28,59 @@ fn test_with_identical_track() {
         1., 1., 1., 1.
     ]);
 
-    assert_eq!(overall_correlations.len(), 4);
     assert_vec_almost_eq!(overall_correlations, vec![1., 1., 1., 1.]);
 }
 
 #[test]
 fn test_with_overlapping_intervals() {
-    let chroms: HashSet<String> =
-        vec!["chr1".into(), "chr2".into()].into_iter().collect();
+    let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
+
     let test_3_bed_path = get_bed_path("tests/test_3.bed");
     let test_4_bed_path = get_bed_path("tests/test_4.bed");
+    let (chrom_correlations, overall_correlations) =
+        biostats::track_correlation::compute_track_correlations(
+            test_3_bed_path.to_str().unwrap(),
+            test_4_bed_path.to_str().unwrap(),
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13],
+            false,
+            Some(chroms),
+            ValueTransform::Identity,
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(chrom_correlations.len(), 1);
+    assert_eq!(chrom_correlations[0].0, "chr1");
+
+    assert_vec_almost_eq!(chrom_correlations[0].1, vec![
+        0.08274757829205674,
+        0.08274757829205674,
+        0.085717287656436,
+        0.13009057672572488,
+        0.05688179313971669,
+        0.09410511434089433,
+        0.3575532028481459,
+        0.11257975517362048,
+        0.4927537474122497,
+        0.40482242419857467,
+        0.03131867977157447,
+        0.5556478168884006,
+        0.8735302221990147
+    ]);
+
+    assert_vec_almost_eq!(overall_correlations, vec![
+        0.08274757829205674,
+        0.08274757829205674,
+        0.085717287656436,
+        0.13009057672572488,
+        0.05688179313971669,
+        0.09410511434089433,
+        0.3575532028481459,
+        0.11257975517362048,
+        0.4927537474122497,
+        0.40482242419857467,
+        0.03131867977157447,
+        0.5556478168884006,
+        0.8735302221990147
+    ]);
 }

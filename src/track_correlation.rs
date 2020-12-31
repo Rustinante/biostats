@@ -123,6 +123,7 @@ pub fn compute_track_correlations(
                         0 => {
                             let vec: Vec<(I64Interval, Vec<Option<f64>>)> =
                                 a_common_refine_b(map_a, map_b).collect();
+
                             weighted_correlation(
                                 || vec.iter(),
                                 non_binned_extractor!(
@@ -134,6 +135,7 @@ pub fn compute_track_correlations(
                         non_zero => {
                             let vec: Vec<(I64Interval, Vec<Option<f64>>)> =
                                 a_bin_b(map_a, map_b, non_zero).collect();
+
                             weighted_correlation(
                                 || vec.iter(),
                                 binned_extractor!(
