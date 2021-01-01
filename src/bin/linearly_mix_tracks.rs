@@ -56,7 +56,7 @@ fn main() {
         )
         .arg(Arg::with_name("binarize_score").long("binarize").help(
             "Each line in the original BED files will contribute a \
-                    unit score for the corresponding interval",
+            unit score for the corresponding interval",
         ))
         .arg(
             Arg::with_name("exclude")
@@ -90,6 +90,11 @@ fn main() {
         .unwrap_or_else(|| ONE_BIN_SIZE_STR.to_string())
         .parse::<i64>()
         .unwrap_or_exit(Some(format_args!("failed to parse bin_size")));
+
+    if bin_size < 0 {
+        eprintln!("--bin-size cannot be negative, received {}", bin_size);
+        std::process::exit(1);
+    }
 
     let binarize_score = extract_boolean_flag(&matches, "binarize_score");
 

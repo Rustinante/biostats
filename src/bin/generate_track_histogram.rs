@@ -103,7 +103,14 @@ fn main() {
         extract_boolean_flag(&matches, "default_human_chrom");
     let filter_chrom = extract_optional_str_arg(&matches, "filter_chrom");
 
-    eprint_named_vars!(track_filepath, bin_size, min, max, default_human_chrom);
+    eprint_named_vars!(
+        track_filepath,
+        bin_size,
+        binarize_score,
+        min,
+        max,
+        default_human_chrom
+    );
     debug_eprint_named_vars!(num_histogram_buckets, filter_chrom);
 
     let filter_chroms = if default_human_chrom {
