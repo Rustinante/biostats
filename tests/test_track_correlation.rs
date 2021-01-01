@@ -8,7 +8,7 @@ fn get_bed_path(filename: &str) -> PathBuf {
 }
 
 #[test]
-fn test_with_identical_track() {
+fn test_identical_tracks() {
     let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
     let (chrom_correlations, overall_correlations) =
         biostats::track_correlation::compute_track_correlations(
@@ -32,7 +32,7 @@ fn test_with_identical_track() {
 }
 
 #[test]
-fn test_with_overlapping_intervals() {
+fn test_single_chrom() {
     let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
 
     let test_3_bed_path = get_bed_path("tests/test_3.bed");
@@ -82,5 +82,51 @@ fn test_with_overlapping_intervals() {
         0.03131867977157447,
         0.5556478168884006,
         0.8735302221990147
+    ]);
+}
+
+#[test]
+fn test_two_chroms() {
+    let chroms: HashSet<String> =
+        vec!["chr1".into(), "chr2".into()].into_iter().collect();
+
+    let test_3_bed_path = get_bed_path("tests/test_5.bed");
+    let test_4_bed_path = get_bed_path("tests/test_6.bed");
+
+    let (chrom_correlations, overall_correlations) =
+        biostats::track_correlation::compute_track_correlations(
+            test_3_bed_path.to_str().unwrap(),
+            test_4_bed_path.to_str().unwrap(),
+            vec![0, 1, 2, 5],
+            false,
+            Some(chroms),
+            ValueTransform::Identity,
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(chrom_correlations.len(), 2);
+    assert_eq!(chrom_correlations[0].0, "chr1");
+    assert_eq!(chrom_correlations[1].0, "chr2");
+
+    assert_vec_almost_eq!(chrom_correlations[0].1, vec![
+        -0.29462546563051467,
+        -0.29462546563051467,
+        -0.32507713972384644,
+        1.
+    ]);
+
+    assert_vec_almost_eq!(chrom_correlations[1].1, vec![
+        -0.20938823948535507,
+        -0.20938823948535507,
+        -0.03846124818029947,
+        1.
+    ]);
+
+    assert_vec_almost_eq!(overall_correlations, vec![
+        0.005916134918602554,
+        0.005916134918602554,
+        0.19356634819114077,
+        0.6687843872007803
     ]);
 }
