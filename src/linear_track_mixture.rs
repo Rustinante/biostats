@@ -34,7 +34,7 @@ impl LinearTrackMixture {
             let (first, rest) = weights
                 .split_first()
                 .expect("weighted_path cannot be empty");
-            (*first, rest.iter().cloned().collect())
+            (*first, rest.to_vec())
         };
 
         let beds: Vec<Bed> = weighted_paths
