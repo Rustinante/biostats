@@ -75,12 +75,17 @@ fn main() {
                 .short("u")
                 .long("unique")
                 .long_help(
-                    "multiple lines with the same \
+                    "Multiple lines with the same \
                     (chromosome, start, end, strand) information will only be \
                     counted once. This option can be used only if \
                     --binarize is set to true",
                 ),
-        );
+        )
+        .arg(Arg::with_name("out_bedgraph").long("out-bedgraph").help(
+            "Output will be in the Begraph format, i.e., each line \
+                    will consist of 4 fields, \
+                    (chromosome, start, end_exclusive, value)",
+        ));
     let matches = app.get_matches();
     let bin_size: i64 = extract_optional_numeric_arg(&matches, "bin_size")
         .unwrap_or_exit(Some(format_args!("failed to parse --bin")))
@@ -99,6 +104,7 @@ fn main() {
         eprintln!("--unique can only be set when --binarize is set");
         std::process::exit(1);
     }
+    let out_bedgraph = extract_boolean_flag(&matches, "out_bedgraph");
 
     eprint_named_vars!(
         bin_size,
@@ -107,7 +113,8 @@ fn main() {
         default_human_chrom,
         out_path,
         track_filepath,
-        unique
+        unique,
+        out_bedgraph
     );
     debug_eprint_named_vars!(filter_chrom);
 
@@ -142,6 +149,7 @@ fn main() {
             unique,
             binarize_score,
             filter_chroms,
+            out_bedgraph,
             debug,
         )
         .unwrap_or_exit(Some("failed to bin track"));

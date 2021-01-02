@@ -8,7 +8,7 @@ description = "A bioinformatics library"
 repository = "https://github.com/Rustinante/biostats"
 
 [dependencies]
-biofile = "1.5.3"
+biofile = "1.7.0"
 clap = "2.32.0"
 math = "0.8.9"
 ndarray = {version = "0.12.1"}

@@ -1,4 +1,7 @@
-use biofile::bed::{Bed, BedDataLine, BedDataLineIter, BedWriter, Chrom};
+use biofile::{
+    bed::{Bed, BedDataLine, BedDataLineIter, BedWriter, Chrom},
+    bedgraph::BedGraphDataLine,
+};
 use math::{
     interval::{traits::Interval, I64Interval},
     iter::{AggregateOp, IntoBinnedIntervalIter},
@@ -19,6 +22,7 @@ pub fn write_common_refined_binned_track(
     unique: bool,
     binarize_score: bool,
     filter_chroms: Option<HashSet<String>>,
+    out_bedgraph: bool,
     debug: bool,
 ) -> Result<TrackBinnerStats, biofile::error::Error> {
     let mut visited = HashSet::new();
@@ -75,42 +79,67 @@ pub fn write_common_refined_binned_track(
 
     let mut writer = BedWriter::new(out_path)?;
     for chrom in crate::util::get_sorted_keys(&chrom_to_interval_map) {
-        let mut data_line = BedDataLine {
-            chrom: chrom.to_string(),
-            start: 0,
-            end: 0,
-            name: None,
-            score: None::<f64>,
-            strand: None,
-        };
         let interval_map = &chrom_to_interval_map[&chrom];
+        macro_rules! write_lines {
+            ($write_bed_line:expr) => {
+                if bin_size == 0 {
+                    interval_map
+                        .iter()
+                        .map(|(&interval, &val)| (interval, val))
+                        .try_for_each($write_bed_line)?;
+                } else {
+                    interval_map
+                        .iter()
+                        .into_binned_interval_iter(
+                            bin_size,
+                            AggregateOp::Average,
+                            Box::new(|item| (*item.0, *item.1)),
+                        )
+                        .try_for_each($write_bed_line)?;
+                }
+            };
+        }
 
-        let write_bed_line = |(interval, value): (I64Interval, f64)|
+        if out_bedgraph {
+            let mut bedgraph_line = BedGraphDataLine {
+                chrom: chrom.to_string(),
+                start: 0,
+                end_exclusive: 0,
+                value: 0f64,
+            };
+            let write_bed_line = |(interval, value): (I64Interval, f64)|
+                -> Result<(), biofile::error::Error>{
+                if !interval.is_empty() {
+                    bedgraph_line.start = interval.get_start();
+                    // the end is exclusive in the BED format
+                    bedgraph_line.end_exclusive = interval.get_end() + 1i64;
+                    bedgraph_line.value = value;
+                    writer.write_bedgraph_line(&bedgraph_line)?;
+                }
+                Ok(())
+            };
+            write_lines!(write_bed_line);
+        } else {
+            let mut bed_line = BedDataLine {
+                chrom: chrom.to_string(),
+                start: 0,
+                end: 0,
+                name: None,
+                score: None::<f64>,
+                strand: None,
+            };
+            let write_bed_line = |(interval, value): (I64Interval, f64)|
             -> Result<(), biofile::error::Error>{
             if !interval.is_empty() {
-                data_line.start = interval.get_start();
+                bed_line.start = interval.get_start();
                 // the end is exclusive in the BED format
-                data_line.end = interval.get_end() + 1i64;
-                data_line.score = Some(value);
-                writer.write_bed_line(&data_line)?;
+                bed_line.end = interval.get_end() + 1i64;
+                bed_line.score = Some(value);
+                writer.write_bed_line(&bed_line)?;
             }
             Ok(())
-        };
-
-        if bin_size == 0 {
-            interval_map
-                .iter()
-                .map(|(&interval, &val)| (interval, val))
-                .try_for_each(write_bed_line)?;
-        } else {
-            interval_map
-                .iter()
-                .into_binned_interval_iter(
-                    bin_size,
-                    AggregateOp::Average,
-                    Box::new(|item| (*item.0, *item.1)),
-                )
-                .try_for_each(write_bed_line)?;
+            };
+            write_lines!(write_bed_line);
         }
     }
     Ok(TrackBinnerStats {
