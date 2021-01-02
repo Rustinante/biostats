@@ -83,3 +83,5 @@ fn test_bedgraph() {
         assert_eq!(line.value, value)
     }
 }
+
+// TODO: test with different bin sizes
