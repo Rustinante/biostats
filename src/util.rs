@@ -9,6 +9,7 @@ use std::{
     fs::OpenOptions,
     io,
     io::{BufRead, BufReader},
+    path::PathBuf,
 };
 
 #[macro_export]
@@ -145,4 +146,10 @@ pub fn get_sorted_keys<K: Clone + Ord, V>(map: &HashMap<K, V>) -> Vec<K> {
     let mut keys: Vec<K> = map.keys().cloned().collect();
     keys.sort();
     keys
+}
+
+pub fn manifest_path_join(filename: &str) -> PathBuf {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push(filename);
+    path
 }

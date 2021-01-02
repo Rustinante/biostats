@@ -1,5 +1,6 @@
-use biostats::util::{
-    extract_chrom_names, get_default_human_chrom_inclusion_set,
+use biostats::{
+    bed_refinery::BedRefinery,
+    util::{extract_chrom_names, get_default_human_chrom_inclusion_set},
 };
 use clap::{clap_app, Arg};
 use program_flow::{
@@ -14,8 +15,8 @@ fn main() {
     let mut app = clap_app!(common_refine_bed =>
         (about: "Takes the common refinement of the intervals under each \
         chromosome and aggregates their corresponding values, while optionally \
-        binning the basepairs. The output intervals will be sorted and \
-        disjoint. The input file must be in the BED format")
+        binning the basepairs. The output intervals will be disjoint and \
+        increasing. The input file must be in the BED format")
     );
     app = app
         .arg(
@@ -141,20 +142,19 @@ fn main() {
         }
     };
 
-    let stats =
-        biostats::track_common_refinery::write_common_refined_binned_track(
-            &track_filepath,
-            &out_path,
-            bin_size,
-            unique,
-            binarize_score,
-            filter_chroms,
-            out_bedgraph,
-            debug,
-        )
+    let refinery = BedRefinery::<f64>::new(
+        &track_filepath,
+        unique,
+        binarize_score,
+        filter_chroms,
+        debug,
+    );
+
+    refinery
+        .write_refined_bed(&out_path, bin_size, out_bedgraph)
         .unwrap_or_exit(Some("failed to bin track"));
 
-    match stats.num_duplicate_lines {
+    match refinery.stats().num_duplicate_lines {
         Some(num_duplicates) => {
             println!("number of duplicate lines: {}", num_duplicates)
         }

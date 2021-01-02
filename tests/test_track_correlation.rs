@@ -1,19 +1,16 @@
-use biostats::{assert_vec_almost_eq, track_correlation::ValueTransform};
-use std::{collections::HashSet, path::PathBuf};
-
-fn get_bed_path(filename: &str) -> PathBuf {
-    let mut path = std::env::current_dir().unwrap();
-    path.push(filename);
-    path
-}
+use biostats::{
+    assert_vec_almost_eq, track_correlation::ValueTransform,
+    util::manifest_path_join,
+};
+use std::collections::HashSet;
 
 #[test]
 fn test_identical_tracks() {
     let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
     let (chrom_correlations, overall_correlations) =
         biostats::track_correlation::compute_track_correlations(
-            get_bed_path("tests/test_1.bed").to_str().unwrap(),
-            get_bed_path("tests/test_2.bed").to_str().unwrap(),
+            manifest_path_join("tests/test_1.bed").to_str().unwrap(),
+            manifest_path_join("tests/test_2.bed").to_str().unwrap(),
             vec![0, 1, 5, 17],
             false,
             Some(chroms),
@@ -35,8 +32,8 @@ fn test_identical_tracks() {
 fn test_single_chrom() {
     let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
 
-    let test_3_bed_path = get_bed_path("tests/test_3.bed");
-    let test_4_bed_path = get_bed_path("tests/test_4.bed");
+    let test_3_bed_path = manifest_path_join("tests/test_3.bed");
+    let test_4_bed_path = manifest_path_join("tests/test_4.bed");
     let (chrom_correlations, overall_correlations) =
         biostats::track_correlation::compute_track_correlations(
             test_3_bed_path.to_str().unwrap(),
@@ -90,8 +87,8 @@ fn test_two_chroms() {
     let chroms: HashSet<String> =
         vec!["chr1".into(), "chr2".into()].into_iter().collect();
 
-    let test_3_bed_path = get_bed_path("tests/test_5.bed");
-    let test_4_bed_path = get_bed_path("tests/test_6.bed");
+    let test_3_bed_path = manifest_path_join("tests/test_5.bed");
+    let test_4_bed_path = manifest_path_join("tests/test_6.bed");
 
     let (chrom_correlations, overall_correlations) =
         biostats::track_correlation::compute_track_correlations(
