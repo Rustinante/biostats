@@ -25,7 +25,7 @@ fn test_unique() {
 
     let bin_size = 0;
     refinery
-        .write_refined_bed(&out_path, bin_size, false)
+        .write_refined_bed(&out_path, bin_size, false, None, false)
         .unwrap();
 
     let bed = Bed::new(&out_path, false);
@@ -56,7 +56,9 @@ fn test_bedgraph() {
     let out_file = NamedTempFile::new().unwrap();
     let out_temp_path = out_file.into_temp_path();
     let out_path = out_temp_path.to_str().unwrap().to_string();
-    refinery.write_refined_bed(&out_path, 0, true).unwrap();
+    refinery
+        .write_refined_bed(&out_path, 0, false, None, true)
+        .unwrap();
 
     let bedgraph = BedGraph::new(&out_path);
 
@@ -85,3 +87,4 @@ fn test_bedgraph() {
 }
 
 // TODO: test with different bin sizes
+// TODO: test with scaling and normalize

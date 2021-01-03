@@ -4,7 +4,7 @@ use biofile::{
 };
 use math::{
     interval::{traits::Interval, I64Interval},
-    iter::{AggregateOp, IntoBinnedIntervalIter},
+    iter::{AggregateOp, IntoBinnedIntervalIter, WeightedSum},
     partition::integer_interval_map::IntegerIntervalMap,
     set::traits::Set,
     traits::ToIterator,
@@ -106,30 +106,43 @@ where
         &self,
         out_path: &str,
         bin_size: i64,
+        normalize: bool,
+        scaling: Option<D>,
         out_bedgraph: bool,
     ) -> Result<(), biofile::error::Error> {
         let mut writer = BedWriter::new(out_path)?;
         for chrom in crate::util::get_sorted_keys(&self.chrom_to_interval_map) {
             let interval_map = &self.chrom_to_interval_map[&chrom];
-            macro_rules! write_lines {
-                ($write_bed_line:expr) => {
+
+            macro_rules! get_interval_value_iter {
+                () => {
                     if bin_size == 0 {
-                        interval_map
-                            .iter()
-                            .map(|(&interval, &val)| (interval, val))
-                            .try_for_each($write_bed_line)?;
+                        Box::new(
+                            interval_map
+                                .iter()
+                                .map(|(&interval, &val)| (interval, val)),
+                        ) as Box<dyn Iterator<Item = (I64Interval, D)>>
                     } else {
-                        interval_map
-                            .iter()
-                            .into_binned_interval_iter(
-                                bin_size,
-                                AggregateOp::Average,
-                                Box::new(|item| (*item.0, *item.1)),
-                            )
-                            .try_for_each($write_bed_line)?;
+                        Box::new(interval_map.iter().into_binned_interval_iter(
+                            bin_size,
+                            AggregateOp::Average,
+                            Box::new(|item| (*item.0, *item.1)),
+                        )) as Box<dyn Iterator<Item = (I64Interval, D)>>
                     }
                 };
             }
+
+            let normalization_constant = if normalize {
+                get_interval_value_iter!().weighted_sum()
+            } else {
+                D::one()
+            };
+            if normalization_constant == D::zero() {
+                return Err(biofile::error::Error::Generic(
+                    "cannot normalize the values when they sum to zero.".into(),
+                ));
+            }
+            let scaling = scaling.unwrap_or(D::one()) / normalization_constant;
 
             if out_bedgraph {
                 let mut bedgraph_line = BedGraphDataLine {
@@ -138,18 +151,19 @@ where
                     end_exclusive: 0,
                     value: D::zero(),
                 };
-                let write_bed_line = |(interval, value): (I64Interval, D)|
-                    -> Result<(), biofile::error::Error>{
-                    if !interval.is_empty() {
-                        bedgraph_line.start = interval.get_start();
-                        // the end is exclusive in the BED format
-                        bedgraph_line.end_exclusive = interval.get_end() + 1i64;
-                        bedgraph_line.value = value;
-                        writer.write_bedgraph_line(&bedgraph_line)?;
-                    }
-                    Ok(())
-                };
-                write_lines!(write_bed_line);
+                get_interval_value_iter!().try_for_each(
+                    |(interval, value): (I64Interval, D)|
+                        -> Result<(), biofile::error::Error>{
+                        if !interval.is_empty() {
+                            bedgraph_line.start = interval.get_start();
+                            bedgraph_line.end_exclusive =
+                                interval.get_end() + 1i64;
+
+                            bedgraph_line.value = value * scaling;
+                            writer.write_bedgraph_line(&bedgraph_line)?;
+                        }
+                        Ok(())
+                    })?;
             } else {
                 let mut bed_line = BedDataLine {
                     chrom: chrom.to_string(),
@@ -159,18 +173,18 @@ where
                     score: None::<D>,
                     strand: None,
                 };
-                let write_bed_line = |(interval, value): (I64Interval, D)|
-                    -> Result<(), biofile::error::Error>{
-                    if !interval.is_empty() {
-                        bed_line.start = interval.get_start();
-                        // the end is exclusive in the BED format
-                        bed_line.end = interval.get_end() + 1i64;
-                        bed_line.score = Some(value);
-                        writer.write_bed_line(&bed_line)?;
-                    }
-                    Ok(())
-                };
-                write_lines!(write_bed_line);
+                get_interval_value_iter!().try_for_each(
+                    |(interval, value): (I64Interval, D)|
+                        -> Result<(), biofile::error::Error>{
+                        if !interval.is_empty() {
+                            bed_line.start = interval.get_start();
+                            // the end is exclusive in the BED format
+                            bed_line.end = interval.get_end() + 1i64;
+                            bed_line.score = Some(value * scaling);
+                            writer.write_bed_line(&bed_line)?;
+                        }
+                        Ok(())
+                    })?;
             }
         }
         Ok(())

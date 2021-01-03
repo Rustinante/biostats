@@ -16,7 +16,7 @@ fn main() {
         (about: "Takes the common refinement of the intervals under each \
         chromosome and aggregates their corresponding values, while optionally \
         binning the basepairs. The output intervals will be disjoint and \
-        increasing. The input file must be in the BED format")
+        increasing. The input file must be in the BED format.")
     );
     app = app
         .arg(
@@ -72,6 +72,26 @@ fn main() {
                 ),
         )
         .arg(
+            Arg::with_name("normalize")
+                .short("n")
+                .long("normalize")
+                .help(
+                    "Normalize by dividing the value associated with each \
+                    basepair by the sum of all values across the basepairs.",
+                ),
+        )
+        .arg(
+            Arg::with_name("scale")
+                .short("s")
+                .long("scale")
+                .takes_value(true)
+                .long_help(
+                    "Scales the value associated with each basepair. \
+                    If --normalize is set, the values will be normalized \
+                    before being scaled.",
+                ),
+        )
+        .arg(
             Arg::with_name("unique")
                 .short("u")
                 .long("unique")
@@ -100,6 +120,10 @@ fn main() {
     let filter_chrom = extract_optional_str_arg(&matches, "filter_chrom");
     let out_path = extract_str_arg(&matches, "out_path");
     let track_filepath = extract_str_arg(&matches, "track_filepath");
+    let normalize = extract_boolean_flag(&matches, "normalize");
+    let scale: Option<f64> = extract_optional_numeric_arg(&matches, "scale")
+        .unwrap_or_exit(None::<String>);
+
     let unique = extract_boolean_flag(&matches, "unique");
     if unique && !binarize_score {
         eprintln!("--unique can only be set when --binarize is set");
@@ -114,10 +138,11 @@ fn main() {
         default_human_chrom,
         out_path,
         track_filepath,
+        normalize,
         unique,
         out_bedgraph
     );
-    debug_eprint_named_vars!(filter_chrom);
+    debug_eprint_named_vars!(filter_chrom, scale);
 
     let filter_chroms = if default_human_chrom {
         Some(get_default_human_chrom_inclusion_set())
@@ -151,7 +176,7 @@ fn main() {
     );
 
     refinery
-        .write_refined_bed(&out_path, bin_size, out_bedgraph)
+        .write_refined_bed(&out_path, bin_size, normalize, scale, out_bedgraph)
         .unwrap_or_exit(Some("failed to bin track"));
 
     match refinery.stats().num_duplicate_lines {
