@@ -17,6 +17,7 @@ fn test_unique() {
         true,
         true,
         None,
+        None,
         false,
     );
     let out_file = NamedTempFile::new().unwrap();
@@ -50,6 +51,7 @@ fn test_bedgraph() {
         manifest_path_join("tests/test_4.bed").to_str().unwrap(),
         false,
         false,
+        None,
         None,
         false,
     );

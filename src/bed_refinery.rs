@@ -250,6 +250,7 @@ mod tests {
                 false,
                 false,
                 None,
+                None,
                 false,
             );
             let chrom_to_interval_map = refinery.get_chrom_to_interval_map();
@@ -271,6 +272,7 @@ mod tests {
                 manifest_path_join("tests/test_4.bed").to_str().unwrap(),
                 false,
                 false,
+                None,
                 None,
                 false,
             );
