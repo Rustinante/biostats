@@ -88,3 +88,4 @@ fn test_bedgraph() {
 
 // TODO: test with different bin sizes
 // TODO: test with scaling and normalize
+// TODO: test exclude

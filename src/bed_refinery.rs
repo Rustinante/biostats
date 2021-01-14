@@ -6,7 +6,7 @@ use math::{
     interval::{traits::Interval, I64Interval},
     iter::{AggregateOp, IntoBinnedIntervalIter, WeightedSum},
     partition::integer_interval_map::IntegerIntervalMap,
-    set::traits::Set,
+    set::traits::{Intersect, Set},
     traits::ToIterator,
 };
 use num::{Float, FromPrimitive};
@@ -35,8 +35,16 @@ where
         unique: bool,
         binarize_score: bool,
         filter_chroms: Option<HashSet<String>>,
+        exclude_track_filepath: Option<String>,
         debug: bool,
     ) -> BedRefinery<D> {
+        let exclude = if let Some(path) = exclude_track_filepath {
+            // binarize_score is irrelevant for getting the intervals
+            Some(Bed::new(&path, false).get_chrom_to_intervals())
+        } else {
+            None
+        };
+
         let mut visited = HashSet::new();
         let mut num_pcr_duplicates = 0i64;
 
@@ -57,6 +65,20 @@ where
                 && !filter_chroms.as_ref().unwrap().contains(&chrom)
             {
                 continue;
+            }
+
+            let interval = I64Interval::new(start, end - 1);
+
+            if let Some(chrom_to_excluded_intervals) = exclude.as_ref() {
+                if let Some(excluded_intervals) =
+                    chrom_to_excluded_intervals.get(&chrom)
+                {
+                    if interval
+                        .has_non_empty_intersection_with(excluded_intervals)
+                    {
+                        continue;
+                    }
+                }
             }
             if unique {
                 if !visited.insert((chrom.clone(), start, end, strand)) {
@@ -85,10 +107,7 @@ where
                 .entry(chrom)
                 .or_insert_with(IntegerIntervalMap::new);
 
-            interval_map.aggregate(
-                I64Interval::new(start, end - 1),
-                score.unwrap_or(D::zero()),
-            );
+            interval_map.aggregate(interval, score.unwrap_or(D::zero()));
         }
         BedRefinery {
             chrom_to_interval_map,

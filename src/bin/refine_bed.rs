@@ -60,6 +60,18 @@ fn main() {
                 ),
         )
         .arg(
+            Arg::with_name("exclude")
+                .long("exclude")
+                .short("v")
+                .takes_value(true)
+                .help(
+                    "Path to a BED-like file where only the chromosome, start \
+                    and end fields are required. Lines from other BED files \
+                    that overlap with any of the coordinates in this 'exclude' \
+                    file will be ignored.",
+                ),
+        )
+        .arg(
             Arg::with_name("filter_chrom")
                 .long("filter-chrom")
                 .short("f")
@@ -117,6 +129,7 @@ fn main() {
     let default_human_chrom =
         extract_boolean_flag(&matches, "default_human_chrom");
 
+    let exclude = extract_optional_str_arg(&matches, "exclude");
     let filter_chrom = extract_optional_str_arg(&matches, "filter_chrom");
     let out_path = extract_str_arg(&matches, "out_path");
     let track_filepath = extract_str_arg(&matches, "track_filepath");
@@ -142,7 +155,7 @@ fn main() {
         unique,
         out_bedgraph
     );
-    debug_eprint_named_vars!(filter_chrom, scale);
+    debug_eprint_named_vars!(exclude, filter_chrom, scale);
 
     let filter_chroms = if default_human_chrom {
         Some(get_default_human_chrom_inclusion_set())
@@ -172,6 +185,7 @@ fn main() {
         unique,
         binarize_score,
         filter_chroms,
+        exclude,
         debug,
     );
 

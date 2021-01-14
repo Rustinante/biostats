@@ -67,7 +67,7 @@ fn main() {
                     "Path to a BED-like file where only the chromosome, start \
                     and end fields are required. Lines from other BED files \
                     that overlap with any of the coordinates in this 'exclude' \
-                    file will be ignroed when computing correlations.",
+                    file will be ignored when computing correlations.",
                 ),
         )
         .arg(
