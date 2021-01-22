@@ -66,6 +66,25 @@ pub fn extract_chrom_names(filepath: &str) -> Result<Vec<String>, io::Error> {
         .collect())
 }
 
+pub fn get_track_paths(
+    track_paths_file: &str,
+) -> Result<Vec<String>, std::io::Error> {
+    let buf_reader =
+        BufReader::new(OpenOptions::new().read(true).open(track_paths_file)?);
+
+    Ok(buf_reader
+        .lines()
+        .filter_map(|line| {
+            let path = line.unwrap().trim().to_string();
+            if path.is_empty() {
+                None
+            } else {
+                Some(path)
+            }
+        })
+        .collect())
+}
+
 pub fn get_weighted_track_paths(
     filepath: &str,
 ) -> Result<Vec<(f64, String)>, std::io::Error> {

@@ -60,9 +60,9 @@ impl RefinedBedZipper {
         } in self.try_to_iter()?
         {
             // note that the end coordinate is exclusive in the BED format
-            write!(&mut writer, "{} {} {}", chrom, start, end_exclusive,)?;
+            write!(&mut writer, "{}\t{}\t{}", chrom, start, end_exclusive,)?;
             for v in values.iter() {
-                write!(&mut writer, " {}", v)?;
+                write!(&mut writer, "\t{}", v)?;
             }
             writeln!(&mut writer,)?;
         }
@@ -190,7 +190,11 @@ impl Iterator for RefinedBedZipperIter {
                         None => default_value,
                         Some((chrom, start, _end_exclusive, value)) => {
                             if chrom == &min_chrom && start == &min_start {
-                                let value = *value;
+                                let value = if let Some(value) = value {
+                                    *value
+                                } else {
+                                    default_value
+                                };
                                 reserve
                                     .advance(alignment, interval_length)
                                     .expect("failed to expect the BedReserve");
@@ -217,22 +221,33 @@ struct BedReserve {
     bed_iter: BedDataLineIter<Value>,
 
     // (chrom, start, end_exclusive, value)
-    current_chrom_coordinates: Option<(Chrom, Coord, Coord, Value)>,
+    current_chrom_coordinates: Option<(Chrom, Coord, Coord, Option<Value>)>,
 
     // does not include the current_chrom
     past_chroms: HashSet<Chrom>,
 }
 
 impl BedReserve {
-    fn new(bed_iter: BedDataLineIter<Value>) -> BedReserve {
+    fn new(mut bed_iter: BedDataLineIter<Value>) -> BedReserve {
+        let current_chrom_coordinates = match bed_iter.next() {
+            None => None,
+            Some(BedDataLine {
+                chrom,
+                start,
+                end,
+                score,
+                ..
+            }) => Some((chrom, start, end, score)),
+        };
+
         BedReserve {
             bed_iter,
-            current_chrom_coordinates: None,
+            current_chrom_coordinates,
             past_chroms: HashSet::new(),
         }
     }
 
-    fn current(&self) -> Option<&(Chrom, Coord, Coord, Value)> {
+    fn current(&self) -> Option<&(Chrom, Coord, Coord, Option<Value>)> {
         self.current_chrom_coordinates.as_ref()
     }
 
@@ -240,7 +255,7 @@ impl BedReserve {
         &mut self,
         alignment: Coord,
         interval_length: Coord,
-    ) -> Result<Option<&(Chrom, Coord, Coord, Value)>, String> {
+    ) -> Result<Option<&(Chrom, Coord, Coord, Option<Value>)>, String> {
         if let Some(BedDataLine {
             chrom,
             start,
@@ -281,23 +296,32 @@ impl BedReserve {
             }
 
             if let Some((
-                _old_chrom,
+                old_chrom,
                 _old_start,
                 old_end_exclusive,
                 _old_value,
             )) = self.current()
             {
-                if start < *old_end_exclusive {
-                    return Err(format!(
-                        "the intervals must be sorted in increasing order, \
-                        new start {} < old_end_exclusive {}",
-                        start, old_end_exclusive
-                    ));
+                if old_chrom == &chrom {
+                    if start < *old_end_exclusive {
+                        return Err(format!(
+                            "the intervals must be sorted in increasing order, \
+                            new start {} < old_end_exclusive {}",
+                            start, old_end_exclusive
+                        ));
+                    }
+                } else {
+                    if old_chrom > &chrom {
+                        return Err(format!(
+                            "the chromosomes must be sorted in increasing \
+                            order, new chrom {} < old chrom {}",
+                            chrom, old_chrom
+                        ));
+                    }
                 }
             }
 
-            self.current_chrom_coordinates =
-                Some((chrom, start, end, score.unwrap_or(0.)));
+            self.current_chrom_coordinates = Some((chrom, start, end, score));
         } else {
             // exhausted all lines
             // move the current chrom into the the past_chroms
