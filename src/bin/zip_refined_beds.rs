@@ -51,6 +51,7 @@ fn main() {
             Arg::with_name("default_value")
                 .long("default-value")
                 .short("d")
+                .takes_value(true)
                 .help(
                     "If a BED is missing the value corresponding to an \
                     interval, this default value will be used as the value \
