@@ -1,3 +1,4 @@
+use biofile::{bed::Bed, bedgraph::BedGraph, util::TrackVariant};
 use biostats::{
     track_correlation::{compute_track_correlations, ValueTransform},
     util::get_default_human_chrom_inclusion_set,
@@ -49,7 +50,7 @@ fn main() {
         )
         .arg(Arg::with_name("binarize_score").long("binarize").help(
             "Each line in the original BED files will contribute a \
-                    unit score for the corresponding interval",
+            unit score for the corresponding interval",
         ))
         .arg(
             Arg::with_name("chroms")
@@ -96,6 +97,22 @@ fn main() {
                     that overlap with any of the coordinates in this 'exclude' \
                     file will be ignroed when computing correlations.",
                 ),
+        )
+        .arg(
+            Arg::with_name("first_bedgraph")
+                .long("first-bedgraph")
+                .help(
+                    "A flag to indicate that the first track is in the \
+                    bedgraph format",
+                ),
+        )
+        .arg(
+            Arg::with_name("second_bedgraph")
+                .long("second-bedgraph")
+                .help(
+                    "A flag to indicate that the second track is in the \
+                    bedgraph format",
+                ),
         );
     let matches = app.get_matches();
     let first_track_filepath =
@@ -127,12 +144,36 @@ fn main() {
     let threshold = extract_optional_numeric_arg(&matches, "threshold")
         .unwrap_or_exit(Some("failed to parse threshold"));
     let exclude = extract_optional_str_arg(&matches, "exclude");
+
+    let first_bedgraph = extract_boolean_flag(&matches, "first_bedgraph");
+    let second_bedgraph = extract_boolean_flag(&matches, "second_bedgraph");
+
+    let first_track: TrackVariant = if first_bedgraph {
+        TrackVariant::BedGraph(BedGraph::new(
+            &first_track_filepath,
+            binarize_score,
+        ))
+    } else {
+        TrackVariant::Bed(Bed::new(&first_track_filepath, binarize_score))
+    };
+
+    let second_track: TrackVariant = if second_bedgraph {
+        TrackVariant::BedGraph(BedGraph::new(
+            &second_track_filepath,
+            binarize_score,
+        ))
+    } else {
+        TrackVariant::Bed(Bed::new(&second_track_filepath, binarize_score))
+    };
+
     eprint_named_vars!(
         first_track_filepath,
         second_track_filepath,
         binarize_score,
         default_human_chroms,
-        log_transform
+        log_transform,
+        first_bedgraph,
+        second_bedgraph
     );
     debug_eprint_named_vars!(threshold, exclude, bin_sizes, chroms);
 
@@ -164,10 +205,9 @@ fn main() {
 
     let (chrom_correlations, overall_correlations) =
         compute_track_correlations(
-            &first_track_filepath,
-            &second_track_filepath,
+            &first_track,
+            &second_track,
             bin_sizes,
-            binarize_score,
             target_chroms,
             transform_type,
             exclude,

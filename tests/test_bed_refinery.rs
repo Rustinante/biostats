@@ -62,7 +62,7 @@ fn test_bedgraph() {
         .write_refined_bed(&out_path, 0, false, None, true)
         .unwrap();
 
-    let bedgraph = BedGraph::new(&out_path);
+    let bedgraph = BedGraph::new(&out_path, false);
 
     let expected = vec![
         (2, 3, 1.),

@@ -1,4 +1,7 @@
-use biofile::bed::{Bed, Chrom};
+use biofile::{
+    bed::{Bed, Chrom},
+    iter::ToChromIntervalValueIter,
+};
 use math::{
     interval::{traits::Interval, I64Interval},
     iter::{AggregateOp, CommonRefinementZip, IntoBinnedIntervalIter},
@@ -33,7 +36,12 @@ impl TrackZipper {
             HashMap<Chrom, IntegerIntervalMap<Value>>,
         > = bed_files
             .iter()
-            .map(|bed| bed.get_chrom_to_interval_to_val(exclude.as_ref()))
+            .map(|bed| {
+                ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                    bed,
+                    exclude.as_ref(),
+                )
+            })
             .collect::<Result<
                 Vec<HashMap<Chrom, IntegerIntervalMap<Value>>>,
                 biofile::error::Error,

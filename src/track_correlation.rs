@@ -1,4 +1,4 @@
-use biofile::bed::Bed;
+use biofile::{bed::Bed, iter::ToChromIntervalValueIter, util::TrackVariant};
 use math::{
     interval::I64Interval,
     iter::{
@@ -7,10 +7,10 @@ use math::{
         UnionZip,
     },
     partition::integer_interval_map::IntegerIntervalMap,
-    set::traits::Finite,
+    set::{ordered_integer_set::OrderedIntegerSet, traits::Finite},
     stats::correlation::weighted_correlation,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// The weight is the reciprocal of the interval size so as to produce the mean
 /// of the values in the interval. Each bin is considered a single entity of
@@ -45,17 +45,35 @@ macro_rules! non_binned_extractor {
 pub type ChromCorrelations = Vec<(String, Vec<f64>)>;
 pub type OverallCorrelations = Vec<f64>;
 
+type Coord = i64;
+
+fn get_chrom_interval_map(
+    track: &TrackVariant,
+    exclude: Option<&HashMap<String, OrderedIntegerSet<Coord>>>,
+) -> Result<HashMap<String, IntegerIntervalMap<f64>>, String> {
+    let result = match track {
+        TrackVariant::Bed(bed) => {
+            ToChromIntervalValueIter::get_chrom_to_interval_to_val(bed, exclude)
+        }
+        TrackVariant::BedGraph(bedgraph) => {
+            ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                bedgraph, exclude,
+            )
+        }
+    };
+    result.map_err(|why| {
+        format!("failed to get the first chrom interval map: {}", why)
+    })
+}
+
 pub fn compute_track_correlations(
-    first_track_filepath: &str,
-    second_track_filepath: &str,
-    bin_sizes: Vec<i64>,
-    binarize_score: bool,
+    first_track: &TrackVariant,
+    second_track: &TrackVariant,
+    bin_sizes: Vec<Coord>,
     target_chroms: Option<HashSet<String>>,
     value_transform: ValueTransform,
     exclude_track_filepath: Option<String>,
 ) -> Result<(ChromCorrelations, OverallCorrelations), String> {
-    let bed_a = Bed::new(&first_track_filepath, binarize_score);
-    let bed_b = Bed::new(&second_track_filepath, binarize_score);
     let exclude = if let Some(path) = exclude_track_filepath {
         // binarize_score is irrelevant for getting the intervals
         Some(Bed::new(&path, false).get_chrom_to_intervals())
@@ -63,35 +81,13 @@ pub fn compute_track_correlations(
         None
     };
 
-    eprintln!(
-        "=> Constructing chrom interval map for {}",
-        first_track_filepath
-    );
+    eprintln!("=> Constructing chrom interval map for the first track");
     let chrom_interval_map_a =
-        match bed_a.get_chrom_to_interval_to_val::<f64, _>(exclude.as_ref()) {
-            Ok(bed) => bed,
-            Err(why) => {
-                return Err(format!(
-                    "failed to get chrom interval map for {}: {}",
-                    first_track_filepath, why
-                ));
-            }
-        };
+        get_chrom_interval_map(first_track, exclude.as_ref())?;
 
-    eprintln!(
-        "=> Constructing chrom interval map for {}",
-        second_track_filepath
-    );
+    eprintln!("=> Constructing chrom interval map for the second track");
     let chrom_interval_map_b =
-        match bed_b.get_chrom_to_interval_to_val::<f64, _>(exclude.as_ref()) {
-            Ok(bed) => bed,
-            Err(why) => {
-                return Err(format!(
-                    "failed to get chrom interval map for {}: {}",
-                    second_track_filepath, why
-                ));
-            }
-        };
+        get_chrom_interval_map(second_track, exclude.as_ref())?;
 
     let empty_interval_map = IntegerIntervalMap::new();
     let get_target_interval_maps = || {

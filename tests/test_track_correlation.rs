@@ -1,3 +1,4 @@
+use biofile::{bed::Bed, util::TrackVariant};
 use biostats::{
     assert_vec_almost_eq, track_correlation::ValueTransform,
     util::manifest_path_join,
@@ -7,12 +8,19 @@ use std::collections::HashSet;
 #[test]
 fn test_identical_tracks() {
     let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
+    let first_track = TrackVariant::Bed(Bed::new(
+        manifest_path_join("tests/test_1.bed").to_str().unwrap(),
+        false,
+    ));
+    let second_track = TrackVariant::Bed(Bed::new(
+        manifest_path_join("tests/test_2.bed").to_str().unwrap(),
+        false,
+    ));
     let (chrom_correlations, overall_correlations) =
         biostats::track_correlation::compute_track_correlations(
-            manifest_path_join("tests/test_1.bed").to_str().unwrap(),
-            manifest_path_join("tests/test_2.bed").to_str().unwrap(),
+            &first_track,
+            &second_track,
             vec![0, 1, 5, 17],
-            false,
             Some(chroms),
             ValueTransform::Identity,
             None,
@@ -32,14 +40,20 @@ fn test_identical_tracks() {
 fn test_single_chrom() {
     let chroms: HashSet<String> = vec!["chr1".into()].into_iter().collect();
 
-    let test_3_bed_path = manifest_path_join("tests/test_3.bed");
-    let test_4_bed_path = manifest_path_join("tests/test_4.bed");
+    let first_track = TrackVariant::Bed(Bed::new(
+        manifest_path_join("tests/test_3.bed").to_str().unwrap(),
+        false,
+    ));
+    let second_track = TrackVariant::Bed(Bed::new(
+        manifest_path_join("tests/test_4.bed").to_str().unwrap(),
+        false,
+    ));
+
     let (chrom_correlations, overall_correlations) =
         biostats::track_correlation::compute_track_correlations(
-            test_3_bed_path.to_str().unwrap(),
-            test_4_bed_path.to_str().unwrap(),
+            &first_track,
+            &second_track,
             vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13],
-            false,
             Some(chroms),
             ValueTransform::Identity,
             None,
@@ -87,15 +101,20 @@ fn test_two_chroms() {
     let chroms: HashSet<String> =
         vec!["chr1".into(), "chr2".into()].into_iter().collect();
 
-    let test_3_bed_path = manifest_path_join("tests/test_5.bed");
-    let test_4_bed_path = manifest_path_join("tests/test_6.bed");
+    let first_track = TrackVariant::Bed(Bed::new(
+        manifest_path_join("tests/test_5.bed").to_str().unwrap(),
+        false,
+    ));
+    let second_track = TrackVariant::Bed(Bed::new(
+        manifest_path_join("tests/test_6.bed").to_str().unwrap(),
+        false,
+    ));
 
     let (chrom_correlations, overall_correlations) =
         biostats::track_correlation::compute_track_correlations(
-            test_3_bed_path.to_str().unwrap(),
-            test_4_bed_path.to_str().unwrap(),
+            &first_track,
+            &second_track,
             vec![0, 1, 2, 5],
-            false,
             Some(chroms),
             ValueTransform::Identity,
             None,

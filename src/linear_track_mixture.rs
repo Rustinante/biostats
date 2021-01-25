@@ -1,7 +1,11 @@
-use biofile::bed::{Bed, BedDataLine, BedWriter, Chrom};
+use biofile::{
+    bed::{Bed, BedDataLine, BedWriter, Chrom},
+    iter::ToChromIntervalValueIter,
+};
 use math::{
     interval::{traits::Interval, I64Interval},
     iter::{AggregateOp, CommonRefinementZip, IntoBinnedIntervalIter},
+    partition::integer_interval_map::IntegerIntervalMap,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -42,93 +46,101 @@ impl LinearTrackMixture {
             .map(|(_, p)| Bed::new(p, use_binary_score))
             .collect();
 
-        let init: HashMap<Chrom, Vec<(I64Interval, Value)>> = beds
-            .first()
-            .expect("weighted_paths cannot be empty")
-            .get_chrom_to_interval_to_val::<Value, _>(exclude.as_ref())?
+        let first_bed = beds.first().expect("weighted_paths cannot be empty");
+
+        let init: HashMap<Chrom, Vec<(I64Interval, Value)>> =
+            ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                first_bed,
+                exclude.as_ref(),
+            )?
             .into_iter()
-            .filter_map(|(chrom, interval_to_val)| {
-                if target_chroms.is_none()
-                    || target_chroms.as_ref().unwrap().contains(&chrom)
-                {
-                    let binned_intervals = interval_to_val
-                        .iter()
-                        .into_binned_interval_iter(
-                            bin_size,
-                            AggregateOp::Average,
-                            Box::new(|item| (*item.0, *item.1)),
-                        )
-                        .into_iter()
-                        .map(|(interval, value)| {
-                            (interval, value * first_weight)
-                        })
-                        .collect::<Vec<(I64Interval, Value)>>();
-                    Some((chrom, binned_intervals))
-                } else {
-                    None
-                }
-            })
+            .filter_map(
+                |(chrom, interval_to_val): (
+                    Chrom,
+                    IntegerIntervalMap<Value>,
+                )| {
+                    if target_chroms.is_none()
+                        || target_chroms.as_ref().unwrap().contains(&chrom)
+                    {
+                        let binned_intervals = interval_to_val
+                            .iter()
+                            .into_binned_interval_iter(
+                                bin_size,
+                                AggregateOp::Average,
+                                Box::new(|item| (*item.0, *item.1)),
+                            )
+                            .into_iter()
+                            .map(|(interval, value)| {
+                                (interval, value * first_weight)
+                            })
+                            .collect::<Vec<(I64Interval, Value)>>();
+                        Some((chrom, binned_intervals))
+                    } else {
+                        None
+                    }
+                },
+            )
             .collect();
 
         let content = beds.iter().skip(1).enumerate().try_fold(
             init,
             |acc_chrom_to_binned_interval_values, (i, bed)| {
-                bed.get_chrom_to_interval_to_val::<Value, _>(exclude.as_ref())?
-                    .into_iter()
-                    .filter_map(|(chrom, interval_to_val)| {
-                        if target_chroms.is_some()
-                            && !target_chroms.as_ref().unwrap().contains(&chrom)
-                        {
-                            return None;
-                        }
-                        let interval_values: Vec<(I64Interval, Value)> =
-                            interval_to_val
+                ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                    bed,
+                    exclude.as_ref(),
+                )?
+                .into_iter()
+                .filter_map(|(chrom, interval_to_val)| {
+                    if target_chroms.is_some()
+                        && !target_chroms.as_ref().unwrap().contains(&chrom)
+                    {
+                        return None;
+                    }
+                    let interval_values: Vec<(I64Interval, Value)> =
+                        interval_to_val
+                            .iter()
+                            .into_binned_interval_iter(
+                                bin_size,
+                                AggregateOp::Average,
+                                Box::new(|item| (*item.0, *item.1)),
+                            )
+                            .collect();
+
+                    let w: Coefficient = rest_weights[i];
+                    match acc_chrom_to_binned_interval_values.get(&chrom) {
+                        None => Some(Ok((chrom, interval_values))),
+
+                        Some(acc_binned_interval_values) => {
+                            let interval_values = acc_binned_interval_values
                                 .iter()
                                 .into_binned_interval_iter(
                                     bin_size,
                                     AggregateOp::Average,
-                                    Box::new(|item| (*item.0, *item.1)),
+                                    Box::new(|&item| (item.0, item.1)),
                                 )
-                                .collect();
-
-                        let w: Coefficient = rest_weights[i];
-                        match acc_chrom_to_binned_interval_values.get(&chrom) {
-                            None => Some(Ok((chrom, interval_values))),
-
-                            Some(acc_binned_interval_values) => {
-                                let interval_values =
-                                    acc_binned_interval_values
+                                .common_refinement_zip(
+                                    interval_values
                                         .iter()
                                         .into_binned_interval_iter(
                                             bin_size,
                                             AggregateOp::Average,
                                             Box::new(|&item| (item.0, item.1)),
-                                        )
-                                        .common_refinement_zip(
-                                            interval_values
-                                                .iter()
-                                                .into_binned_interval_iter(
-                                                    bin_size,
-                                                    AggregateOp::Average,
-                                                    Box::new(|&item| {
-                                                        (item.0, item.1)
-                                                    }),
-                                                ),
-                                        )
-                                        .map(|(interval, values)| {
-                                            let acc = values[0].unwrap_or(0f64);
-                                            let val = values[1].unwrap_or(0f64);
-                                            (interval, acc + val * w)
-                                        })
-                                        .collect();
-                                Some(Ok((chrom, interval_values)))
-                            }
+                                        ),
+                                )
+                                .map(|(interval, values)| {
+                                    let acc = values[0].unwrap_or(0f64);
+                                    let val = values[1].unwrap_or(0f64);
+                                    (interval, acc + val * w)
+                                })
+                                .collect();
+                            Some(Ok((chrom, interval_values)))
                         }
-                    })
-                    .collect::<Result<
-                        HashMap<Chrom, Vec<(I64Interval, Value)>>,
-                        biofile::error::Error,
-                    >>()
+                    }
+                })
+                .collect::<Result<
+                    HashMap<Chrom, Vec<(I64Interval, Value)>>,
+                    biofile::error::Error,
+                >>()
             },
         )?;
         Ok(LinearTrackMixture {
@@ -166,7 +178,7 @@ impl LinearTrackMixture {
 #[cfg(test)]
 mod tests {
     use crate::linear_track_mixture::LinearTrackMixture;
-    use biofile::bed::Bed;
+    use biofile::{bed::Bed, iter::ToChromIntervalValueIter};
     use math::interval::I64Interval;
     use std::{
         collections::HashSet,
@@ -250,9 +262,13 @@ mod tests {
             mixture
                 .write_to_bed_file(mixed_path.to_str().unwrap())
                 .unwrap();
-            let x = Bed::new(mixed_path.to_str().unwrap(), false)
-                .get_chrom_to_interval_to_val::<f64, _>(None)
-                .unwrap();
+            let x = {
+                let bed = Bed::new(mixed_path.to_str().unwrap(), false);
+                ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                    &bed, None,
+                )
+                .unwrap()
+            };
 
             let mut chr1_map_iter = x["chr1"].iter();
             check_chrom!(
@@ -283,9 +299,13 @@ mod tests {
             mixture
                 .write_to_bed_file(mixed_path.to_str().unwrap())
                 .unwrap();
-            let x = Bed::new(mixed_path.to_str().unwrap(), false)
-                .get_chrom_to_interval_to_val::<f64, _>(None)
-                .unwrap();
+            let x = {
+                let bed = Bed::new(mixed_path.to_str().unwrap(), false);
+                ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                    &bed, None,
+                )
+                .unwrap()
+            };
 
             let mut chr1_map_iter = x["chr1"].iter();
             check_chrom!(
@@ -324,9 +344,13 @@ mod tests {
             mixture
                 .write_to_bed_file(mixed_path.to_str().unwrap())
                 .unwrap();
-            let x = Bed::new(mixed_path.to_str().unwrap(), false)
-                .get_chrom_to_interval_to_val::<f64, _>(None)
-                .unwrap();
+            let x = {
+                let bed = Bed::new(mixed_path.to_str().unwrap(), false);
+                ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                    &bed, None,
+                )
+                .unwrap()
+            };
 
             assert!(!x.contains_key("chr1"));
             assert!(x.contains_key("chr3"));
