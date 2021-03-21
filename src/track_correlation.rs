@@ -19,9 +19,9 @@ macro_rules! binned_extractor {
     ($transform: expr, $transform_type: expr) => {
         |(interval, v)| {
             (
-                $transform(&interval, v[0].unwrap_or(0.), $transform_type),
-                $transform(&interval, v[1].unwrap_or(0.), $transform_type),
-                1. / interval.size() as f64,
+                $transform(v[0].unwrap_or(0.), $transform_type),
+                $transform(v[1].unwrap_or(0.), $transform_type),
+                interval.size() as f64,
             )
         }
     };
@@ -34,8 +34,8 @@ macro_rules! non_binned_extractor {
     ($transform: expr, $transform_type: expr) => {
         |(interval, v)| {
             (
-                $transform(&interval, v[0].unwrap_or(0.), $transform_type),
-                $transform(&interval, v[1].unwrap_or(0.), $transform_type),
+                $transform(v[0].unwrap_or(0.), $transform_type),
+                $transform(v[1].unwrap_or(0.), $transform_type),
                 interval.size() as f64,
             )
         }
@@ -190,20 +190,14 @@ pub enum ValueTransform {
     Thresholding(f64),
 }
 
-fn apply_transform(
-    interval: &I64Interval,
-    value: f64,
-    transform: ValueTransform,
-) -> f64 {
+fn apply_transform(value: f64, transform: ValueTransform) -> f64 {
     match transform {
         ValueTransform::Identity => value,
         ValueTransform::Thresholding(t) => {
-            let len = interval.size() as f64;
-            let avg_value = value / len;
-            if avg_value > t {
-                t * len
-            } else if avg_value < -t {
-                -t * len
+            if value > t {
+                t
+            } else if value < -t {
+                -t
             } else {
                 value
             }
@@ -247,12 +241,12 @@ fn a_bin_b<'a>(
         .iter()
         .into_binned_interval_iter(
             bin_size,
-            AggregateOp::Sum,
+            AggregateOp::Average,
             Box::new(|item| (*item.0, *item.1)),
         )
         .common_refinement_zip(map_b.iter().into_binned_interval_iter(
             bin_size,
-            AggregateOp::Sum,
+            AggregateOp::Average,
             Box::new(|item| (*item.0, *item.1)),
         ))
 }
