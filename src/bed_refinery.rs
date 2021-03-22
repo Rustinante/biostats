@@ -4,7 +4,9 @@ use biofile::{
 };
 use math::{
     interval::{traits::Interval, I64Interval},
-    iter::{AggregateOp, IntoBinnedIntervalIter, WeightedSum},
+    iter::{
+        AggregateOp, ConcatenatedIter, IntoBinnedIntervalIter, WeightedSum,
+    },
     partition::integer_interval_map::IntegerIntervalMap,
     set::traits::{Intersect, Set},
     traits::ToIterator,
@@ -129,39 +131,76 @@ where
         scaling: Option<D>,
         out_bedgraph: bool,
     ) -> Result<(), biofile::error::Error> {
+        macro_rules! interval_map_to_iter {
+            ($m:expr) => {
+                $m.iter().map(|(&interval, &val)| (interval, val))
+            };
+        }
+        macro_rules! interval_map_to_binned_iter {
+            ($m:expr) => {
+                $m.iter().into_binned_interval_iter(
+                    bin_size,
+                    AggregateOp::Average,
+                    Box::new(|item| (*item.0, *item.1)),
+                )
+            };
+        }
+
+        let sorted_chroms =
+            crate::util::get_sorted_keys(&self.chrom_to_interval_map);
+
+        let normalization_constant = if normalize {
+            if bin_size == 0 {
+                ConcatenatedIter::from_iters(
+                    sorted_chroms
+                        .iter()
+                        .map(|chrom| {
+                            interval_map_to_iter!(
+                                self.chrom_to_interval_map[chrom]
+                            )
+                        })
+                        .collect(),
+                )
+                .weighted_sum()
+            } else {
+                ConcatenatedIter::from_iters(
+                    sorted_chroms
+                        .iter()
+                        .map(|chrom| {
+                            interval_map_to_binned_iter!(
+                                self.chrom_to_interval_map[chrom]
+                            )
+                        })
+                        .collect(),
+                )
+                .weighted_sum()
+            }
+        } else {
+            D::one()
+        };
+
+        if normalization_constant == D::zero() {
+            return Err(biofile::error::Error::Generic(
+                "cannot normalize the values when they sum to zero.".into(),
+            ));
+        }
+        let scaling = scaling.unwrap_or(D::one()) / normalization_constant;
+
         let mut writer = BedWriter::new(out_path)?;
-        for chrom in crate::util::get_sorted_keys(&self.chrom_to_interval_map) {
+        for chrom in sorted_chroms {
             let interval_map = &self.chrom_to_interval_map[&chrom];
 
             macro_rules! get_interval_value_iter {
                 () => {
                     if bin_size == 0 {
-                        Box::new(
-                            interval_map
-                                .iter()
-                                .map(|(&interval, &val)| (interval, val)),
-                        ) as Box<dyn Iterator<Item = (I64Interval, D)>>
+                        Box::new(interval_map_to_iter!(interval_map))
+                            as Box<dyn Iterator<Item = (I64Interval, D)>>
                     } else {
-                        Box::new(interval_map.iter().into_binned_interval_iter(
-                            bin_size,
-                            AggregateOp::Average,
-                            Box::new(|item| (*item.0, *item.1)),
-                        )) as Box<dyn Iterator<Item = (I64Interval, D)>>
+                        Box::new(interval_map_to_binned_iter!(interval_map))
+                            as Box<dyn Iterator<Item = (I64Interval, D)>>
                     }
                 };
             }
-
-            let normalization_constant = if normalize {
-                get_interval_value_iter!().weighted_sum()
-            } else {
-                D::one()
-            };
-            if normalization_constant == D::zero() {
-                return Err(biofile::error::Error::Generic(
-                    "cannot normalize the values when they sum to zero.".into(),
-                ));
-            }
-            let scaling = scaling.unwrap_or(D::one()) / normalization_constant;
 
             if out_bedgraph {
                 let mut bedgraph_line = BedGraphDataLine {
