@@ -15,6 +15,7 @@ fn test_unique() {
     let refinery = BedRefinery::<f64>::new(
         manifest_path_join("tests/test_7.bed").to_str().unwrap(),
         true,
+        None,
         true,
         None,
         None,
@@ -50,6 +51,7 @@ fn test_bedgraph() {
     let refinery = BedRefinery::<f64>::new(
         manifest_path_join("tests/test_4.bed").to_str().unwrap(),
         false,
+        None,
         false,
         None,
         None,
@@ -91,3 +93,4 @@ fn test_bedgraph() {
 // TODO: test with different bin sizes
 // TODO: test with scaling and normalize
 // TODO: test exclude
+// TODO: test max_len

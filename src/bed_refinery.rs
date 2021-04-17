@@ -8,7 +8,7 @@ use math::{
         AggregateOp, ConcatenatedIter, IntoBinnedIntervalIter, WeightedSum,
     },
     partition::integer_interval_map::IntegerIntervalMap,
-    set::traits::{Intersect, Set},
+    set::traits::{Finite, Intersect, Set},
     traits::ToIterator,
 };
 use num::{Float, FromPrimitive};
@@ -35,6 +35,7 @@ where
     pub fn new(
         track_filepath: &str,
         unique: bool,
+        max_len: Option<usize>,
         binarize_score: bool,
         filter_chroms: Option<HashSet<String>>,
         exclude_track_filepath: Option<String>,
@@ -70,6 +71,24 @@ where
             }
 
             let interval = I64Interval::new(start, end - 1);
+
+            if let Some(max_len) = max_len {
+                if interval.size() > max_len {
+                    if debug {
+                        eprintln!(
+                            "filtering out (chrom, start, end, strand): \
+                            ({}, {}, {}, {:?}) of length {} > max_len {}",
+                            chrom,
+                            start,
+                            end,
+                            strand,
+                            interval.size(),
+                            max_len
+                        )
+                    }
+                    continue;
+                }
+            }
 
             if let Some(chrom_to_excluded_intervals) = exclude.as_ref() {
                 if let Some(excluded_intervals) =
@@ -287,6 +306,7 @@ mod tests {
             let refinery = BedRefinery::<f64>::new(
                 manifest_path_join("tests/test_3.bed").to_str().unwrap(),
                 false,
+                None,
                 false,
                 None,
                 None,
@@ -310,6 +330,7 @@ mod tests {
             let refinery = BedRefinery::<f32>::new(
                 manifest_path_join("tests/test_4.bed").to_str().unwrap(),
                 false,
+                None,
                 false,
                 None,
                 None,

@@ -84,6 +84,17 @@ fn main() {
                 ),
         )
         .arg(
+            Arg::with_name("max_len")
+                .long("max-len")
+                .takes_value(true)
+                .help(
+                    "If provided, will ignore lines in which \
+                    end - start > max_len. Note that in the BED format, \
+                    end is exclusive, so end - start is exactly the \
+                    number of basepairs.",
+                ),
+        )
+        .arg(
             Arg::with_name("normalize")
                 .short("n")
                 .long("normalize")
@@ -133,6 +144,10 @@ fn main() {
     let filter_chrom = extract_optional_str_arg(&matches, "filter_chrom");
     let out_path = extract_str_arg(&matches, "out_path");
     let track_filepath = extract_str_arg(&matches, "track_filepath");
+    let max_len: Option<usize> =
+        extract_optional_numeric_arg(&matches, "max_len")
+            .unwrap_or_exit(Some("failed to parse the --max-len argument"));
+
     let normalize = extract_boolean_flag(&matches, "normalize");
     let scale: Option<f64> = extract_optional_numeric_arg(&matches, "scale")
         .unwrap_or_exit(None::<String>);
@@ -155,7 +170,7 @@ fn main() {
         unique,
         out_bedgraph
     );
-    debug_eprint_named_vars!(exclude, filter_chrom, scale);
+    debug_eprint_named_vars!(exclude, filter_chrom, max_len, scale);
 
     let filter_chroms = if default_human_chrom {
         Some(get_default_human_chrom_inclusion_set())
@@ -183,6 +198,7 @@ fn main() {
     let refinery = BedRefinery::<f64>::new(
         &track_filepath,
         unique,
+        max_len,
         binarize_score,
         filter_chroms,
         exclude,
