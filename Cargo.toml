@@ -1,6 +1,6 @@
 [package]
 name = "biostats"
-version = "0.6.3"
+version = "0.6.4"
 authors = ["Aaron Zorel"]
 edition = "2018"
 license = "Apache-2.0"
@@ -8,8 +8,9 @@ description = "A bioinformatics library"
 repository = "https://github.com/Rustinante/biostats"
 
 [dependencies]
-biofile = "1.10.2"
+biofile = "1.10.3"
 clap = "2.32.0"
+enum_dispatch = "0.3.7"
 math = "0.10.0"
 ndarray = {version = "0.12.1"}
 num = "0.2"

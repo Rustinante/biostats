@@ -1,4 +1,9 @@
-use biofile::bed::{Bed, BedDataLine, BedDataLineIter};
+use biofile::{
+    bed::{Bed, BedDataLine, BedDataLineIter},
+    bedgraph::{BedGraph, BedGraphDataLine, BedGraphDataLineIter},
+    traits::ToChromStartEndVal,
+};
+use enum_dispatch::enum_dispatch;
 use math::traits::ToIterator;
 use std::{
     collections::HashSet,
@@ -70,6 +75,12 @@ impl RefinedBedZipper {
     }
 }
 
+#[enum_dispatch(BedReserveOp)]
+enum BedReserveVariant {
+    Bed(BedReserve<BedDataLineIter<Value>, BedDataLine<Value>>),
+    BedGraph(BedReserve<BedGraphDataLineIter<Value>, BedGraphDataLine<Value>>),
+}
+
 pub trait TryToIter<'s, I: Iterator<Item = R>, R, E> {
     fn try_to_iter(&'s self) -> Result<I, E>;
 }
@@ -78,11 +89,25 @@ impl<'s> TryToIter<'s, RefinedBedZipperIter, ZippedBedGraphLine, String>
     for RefinedBedZipper
 {
     fn try_to_iter(&'s self) -> Result<RefinedBedZipperIter, String> {
-        let bed_reserves: Vec<BedReserve> = self
+        let bed_reserves: Vec<BedReserveVariant> = self
             .refined_bed_paths
             .iter()
-            .map(|p| BedReserve::new(Bed::new(p, false).to_iter()))
-            .collect();
+            .map(|p| {
+                if p.ends_with(".bed") {
+                    Ok(BedReserveVariant::Bed(BedReserve::new(
+                        Bed::new(p, false).to_iter(),
+                    )))
+                } else if p.ends_with(".bedgraph") {
+                    Ok(BedReserveVariant::BedGraph(BedReserve::new(
+                        BedGraph::new(p, false).to_iter(),
+                    )))
+                } else {
+                    Err(format!(
+                        "file names must end with either .bed or .bedgraph"
+                    ))
+                }
+            })
+            .collect::<Result<Vec<BedReserveVariant>, String>>()?;
 
         RefinedBedZipperIter::new(
             bed_reserves,
@@ -101,7 +126,7 @@ pub struct ZippedBedGraphLine {
 }
 
 struct RefinedBedZipperIter {
-    bed_reserves: Vec<BedReserve>,
+    bed_reserves: Vec<BedReserveVariant>,
 
     // the start coordinate of each interval must be divisible by this
     // alignment.
@@ -115,7 +140,7 @@ struct RefinedBedZipperIter {
 
 impl RefinedBedZipperIter {
     fn new(
-        bed_reserves: Vec<BedReserve>,
+        bed_reserves: Vec<BedReserveVariant>,
         alignment: Coord,
         interval_length: Coord,
         default_value: Value,
@@ -197,7 +222,10 @@ impl Iterator for RefinedBedZipperIter {
                                 };
                                 reserve
                                     .advance(alignment, interval_length)
-                                    .expect("failed to expect the BedReserve");
+                                    .expect(
+                                        "BedReserve failed to advance \
+                                        to the next line",
+                                    );
                                 value
                             } else {
                                 default_value
@@ -217,8 +245,8 @@ impl Iterator for RefinedBedZipperIter {
     }
 }
 
-struct BedReserve {
-    bed_iter: BedDataLineIter<Value>,
+struct BedReserve<Iter: Iterator<Item = T>, T: ToChromStartEndVal<Value>> {
+    bed_iter: Iter,
 
     // (chrom, start, end_exclusive, value)
     current_chrom_coordinates: Option<(Chrom, Coord, Coord, Option<Value>)>,
@@ -227,18 +255,12 @@ struct BedReserve {
     past_chroms: HashSet<Chrom>,
 }
 
-impl BedReserve {
-    fn new(mut bed_iter: BedDataLineIter<Value>) -> BedReserve {
-        let current_chrom_coordinates = match bed_iter.next() {
-            None => None,
-            Some(BedDataLine {
-                chrom,
-                start,
-                end,
-                score,
-                ..
-            }) => Some((chrom, start, end, score)),
-        };
+impl<Iter: Iterator<Item = T>, T: ToChromStartEndVal<Value>>
+    BedReserve<Iter, T>
+{
+    fn new(mut bed_iter: Iter) -> BedReserve<Iter, T> {
+        let current_chrom_coordinates =
+            bed_iter.next().map(|x| x.to_chrom_start_end_val());
 
         BedReserve {
             bed_iter,
@@ -246,7 +268,22 @@ impl BedReserve {
             past_chroms: HashSet::new(),
         }
     }
+}
 
+#[enum_dispatch]
+trait BedReserveOp {
+    fn current(&self) -> Option<&(Chrom, Coord, Coord, Option<Value>)>;
+
+    fn advance(
+        &mut self,
+        alignment: Coord,
+        interval_length: Coord,
+    ) -> Result<Option<&(Chrom, Coord, Coord, Option<Value>)>, String>;
+}
+
+impl<Iter: Iterator<Item = T>, T: ToChromStartEndVal<Value>> BedReserveOp
+    for BedReserve<Iter, T>
+{
     fn current(&self) -> Option<&(Chrom, Coord, Coord, Option<Value>)> {
         self.current_chrom_coordinates.as_ref()
     }
@@ -256,13 +293,8 @@ impl BedReserve {
         alignment: Coord,
         interval_length: Coord,
     ) -> Result<Option<&(Chrom, Coord, Coord, Option<Value>)>, String> {
-        if let Some(BedDataLine {
-            chrom,
-            start,
-            end,
-            score,
-            ..
-        }) = self.bed_iter.next()
+        if let Some((chrom, start, end, score)) =
+            self.bed_iter.next().map(|x| x.to_chrom_start_end_val())
         {
             if self.past_chroms.contains(&chrom) {
                 return Err(format!(
@@ -273,11 +305,17 @@ impl BedReserve {
             }
 
             if end - start != interval_length {
-                return Err(format!(""));
+                return Err(format!(
+                    "end ({}) - start ({}) != interval_length ({})",
+                    end, start, interval_length
+                ));
             }
 
             if start % interval_length != alignment {
-                return Err(format!(""));
+                return Err(format!(
+                    "start ({}) % interval_length ({}) != alignment ({})",
+                    start, interval_length, alignment
+                ));
             }
 
             let insert_to_past_chroms = match self.current() {

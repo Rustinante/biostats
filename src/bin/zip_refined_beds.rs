@@ -20,7 +20,8 @@ fn main() {
                 .required(true)
                 .help(
                     "Path to a file in which each line is the path \
-                    to a refined BED file",
+                    to a refined BED or a refined BedGraph file, where the \
+                    suffix must be .bed and .bedgraph respectively",
                 ),
         )
         .arg(
