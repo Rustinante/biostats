@@ -24,6 +24,7 @@ fn test_identical_tracks() {
             Some(chroms),
             ValueTransform::Identity,
             None,
+            None,
         )
         .unwrap();
 
@@ -56,6 +57,7 @@ fn test_single_chrom() {
             vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13],
             Some(chroms),
             ValueTransform::Identity,
+            None,
             None,
         )
         .unwrap();
@@ -117,6 +119,7 @@ fn test_two_chroms() {
             vec![0, 1, 2, 5],
             Some(chroms),
             ValueTransform::Identity,
+            None,
             None,
         )
         .unwrap();

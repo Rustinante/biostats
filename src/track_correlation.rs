@@ -1,3 +1,4 @@
+use crate::{top_k::get_top_k, util::get_chrom_interval_map};
 use biofile::{bed::Bed, iter::ToChromIntervalValueIter, util::TrackVariant};
 use math::{
     interval::I64Interval,
@@ -47,31 +48,13 @@ pub type OverallCorrelations = Vec<f64>;
 
 type Coord = i64;
 
-fn get_chrom_interval_map(
-    track: &TrackVariant,
-    exclude: Option<&HashMap<String, OrderedIntegerSet<Coord>>>,
-) -> Result<HashMap<String, IntegerIntervalMap<f64>>, String> {
-    let result = match track {
-        TrackVariant::Bed(bed) => {
-            ToChromIntervalValueIter::get_chrom_to_interval_to_val(bed, exclude)
-        }
-        TrackVariant::BedGraph(bedgraph) => {
-            ToChromIntervalValueIter::get_chrom_to_interval_to_val(
-                bedgraph, exclude,
-            )
-        }
-    };
-    result.map_err(|why| {
-        format!("failed to get the first chrom interval map: {}", why)
-    })
-}
-
 pub fn compute_track_correlations(
     first_track: &TrackVariant,
     second_track: &TrackVariant,
     bin_sizes: Vec<Coord>,
     target_chroms: Option<HashSet<String>>,
     value_transform: ValueTransform,
+    top_k: Option<i64>,
     exclude_track_filepath: Option<String>,
 ) -> Result<(ChromCorrelations, OverallCorrelations), String> {
     let exclude = if let Some(path) = exclude_track_filepath {
@@ -109,42 +92,58 @@ pub fn compute_track_correlations(
             })
     };
 
+    let get_a_bin_b_zipped =
+        |map_a,
+         map_b,
+         bin_size|
+         -> Result<Vec<(I64Interval, Vec<Option<f64>>)>, String> {
+            if let Some(k) = top_k {
+                let map_a_top_k = get_top_k(map_a, k, bin_size)?;
+                let map_b_top_k = get_top_k(map_b, k, bin_size)?;
+                Ok(a_bin_b(&map_a_top_k, &map_b_top_k, bin_size).collect())
+            } else {
+                Ok(a_bin_b(map_a, map_b, bin_size).collect())
+            }
+        };
+
     let chrom_correlations: Vec<(String, Vec<f64>)> =
         get_target_interval_maps()
             .map(|(chrom, map_a, map_b)| {
                 eprintln!("=> Computing correlations for {}", chrom);
-                let correlations = bin_sizes
+
+                let correlations: Result<Vec<f64>, String> = bin_sizes
                     .iter()
                     .map(|&s| match s {
                         0 => {
                             let vec: Vec<(I64Interval, Vec<Option<f64>>)> =
                                 a_common_refine_b(map_a, map_b).collect();
 
-                            weighted_correlation(
+                            Ok(weighted_correlation(
                                 || vec.iter(),
                                 non_binned_extractor!(
                                     apply_transform,
                                     value_transform
                                 ),
-                            )
+                            ))
                         }
                         non_zero => {
                             let vec: Vec<(I64Interval, Vec<Option<f64>>)> =
-                                a_bin_b(map_a, map_b, non_zero).collect();
+                                get_a_bin_b_zipped(map_a, map_b, non_zero)?;
 
-                            weighted_correlation(
+                            Ok(weighted_correlation(
                                 || vec.iter(),
                                 binned_extractor!(
                                     apply_transform,
                                     value_transform
                                 ),
-                            )
+                            ))
                         }
                     })
                     .collect();
-                (chrom, correlations)
+
+                correlations.map(|c| (chrom, c))
             })
-            .collect();
+            .collect::<Result<Vec<(String, Vec<f64>)>, String>>()?;
 
     eprintln!("=> Computing overall correlations");
     let overall_correlations: Vec<f64> = bin_sizes

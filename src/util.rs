@@ -1,7 +1,8 @@
-use biofile::bed::Chrom;
+use biofile::{bed::Chrom, iter::ToChromIntervalValueIter, util::TrackVariant};
 use math::{
     iter::{AsUnionZipped, IntoUnionZip},
     partition::integer_interval_map::IntegerIntervalMap,
+    set::ordered_integer_set::OrderedIntegerSet,
 };
 use num::Num;
 use std::{
@@ -116,6 +117,25 @@ pub fn get_weighted_track_paths(
             }
         })
         .collect())
+}
+
+pub fn get_chrom_interval_map(
+    track: &TrackVariant,
+    exclude: Option<&HashMap<String, OrderedIntegerSet<i64>>>,
+) -> Result<HashMap<String, IntegerIntervalMap<f64>>, String> {
+    let result = match track {
+        TrackVariant::Bed(bed) => {
+            ToChromIntervalValueIter::get_chrom_to_interval_to_val(bed, exclude)
+        }
+        TrackVariant::BedGraph(bedgraph) => {
+            ToChromIntervalValueIter::get_chrom_to_interval_to_val(
+                bedgraph, exclude,
+            )
+        }
+    };
+    result.map_err(|why| {
+        format!("failed to get the first chrom interval map: {}", why)
+    })
 }
 
 ///

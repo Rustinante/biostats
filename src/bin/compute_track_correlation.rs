@@ -48,6 +48,17 @@ fn main() {
                     value.",
                 ),
         )
+        .arg(
+            Arg::with_name("top_k")
+                .long("top-k")
+                .takes_value(true)
+                .long_help(
+                    "For each chromosome, only take the top K bins when \
+                    the bin size is non-zero. When the bin size is 0 this \
+                    argument has no effect. Currently does not apply to \
+                    the overall correlations across chromosomes.",
+                ),
+        )
         .arg(Arg::with_name("binarize_score").long("binarize").help(
             "Each line in the original BED files will contribute a \
             unit score for the corresponding interval",
@@ -134,6 +145,8 @@ fn main() {
             .collect();
 
     let chroms = extract_optional_str_vec_arg(&matches, "chroms");
+    let top_k = extract_optional_numeric_arg(&matches, "top_k")
+        .unwrap_or_exit(Some("failed to parse top-k"));
 
     let binarize_score = extract_boolean_flag(&matches, "binarize_score");
 
@@ -175,7 +188,7 @@ fn main() {
         first_bedgraph,
         second_bedgraph
     );
-    debug_eprint_named_vars!(threshold, exclude, bin_sizes, chroms);
+    debug_eprint_named_vars!(threshold, exclude, bin_sizes, chroms, top_k);
 
     let target_chroms = match chroms {
         Some(chroms) => {
@@ -210,6 +223,7 @@ fn main() {
             bin_sizes,
             target_chroms,
             transform_type,
+            top_k,
             exclude,
         )
         .unwrap_or_exit(Some("failed to compute track correlations"));

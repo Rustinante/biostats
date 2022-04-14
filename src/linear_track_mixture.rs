@@ -177,7 +177,7 @@ impl LinearTrackMixture {
 
 #[cfg(test)]
 mod tests {
-    use crate::linear_track_mixture::LinearTrackMixture;
+    use crate::{check_chrom, linear_track_mixture::LinearTrackMixture};
     use biofile::{bed::Bed, iter::ToChromIntervalValueIter};
     use math::interval::I64Interval;
     use std::{
@@ -216,28 +216,6 @@ mod tests {
             }
             bed_2.into_temp_path()
         };
-
-        macro_rules! check_chrom {
-            (
-                $iter:expr, $($start_end_val:expr), *
-            ) => {
-                {
-                    $(
-                        let start = $start_end_val.0;
-                        let end = $start_end_val.1;
-                        let val = $start_end_val.2;
-                        assert_eq!(
-                            $iter.next(),
-                            Some((&I64Interval::new(start, end), &val))
-                        );
-                    )*
-                }
-                assert_eq!(
-                    $iter.next(),
-                    None
-                );
-            };
-        }
 
         let bin_size = 50;
 
