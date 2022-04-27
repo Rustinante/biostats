@@ -1,9 +1,16 @@
 use biofile::{bed::Bed, bedgraph::BedGraph, util::TrackVariant};
 use biostats::{
+    top_k_overlap::get_top_k_overlap_ratio,
     track_correlation::{compute_track_correlations, ValueTransform},
-    util::get_default_human_chrom_inclusion_set,
+    util::{
+        get_chrom_interval_map, get_default_human_chrom_inclusion_set,
+        get_excluded_interval_maps,
+    },
 };
 use clap::{clap_app, Arg};
+use math::{
+    iter::UnionZip, partition::integer_interval_map::IntegerIntervalMap,
+};
 use program_flow::{
     argparse::{
         extract_boolean_flag, extract_optional_numeric_arg,
@@ -53,7 +60,8 @@ fn main() {
                 .long("top-k")
                 .takes_value(true)
                 .long_help(
-                    "For each chromosome, only take the top K bins when \
+                    "For each chromosome, compute the overlap ratio \
+                    between the top K bins in each track when \
                     the bin size is non-zero. When the bin size is 0 this \
                     argument has no effect. Currently does not apply to \
                     the overall correlations across chromosomes.",
@@ -220,11 +228,11 @@ fn main() {
         compute_track_correlations(
             &first_track,
             &second_track,
-            bin_sizes,
+            &bin_sizes,
             target_chroms,
             transform_type,
-            top_k,
-            exclude,
+            None,
+            exclude.clone(),
         )
         .unwrap_or_exit(Some("failed to compute track correlations"));
 
@@ -238,4 +246,39 @@ fn main() {
         .iter()
         .for_each(|c| print!("{:.5}, ", c));
     println!();
+
+    if let Some(top_k) = top_k {
+        let exlcude = get_excluded_interval_maps(exclude);
+
+        let chrom_interval_map_1 =
+            get_chrom_interval_map(&first_track, exlcude.as_ref())
+                .unwrap_or_exit(None::<String>);
+
+        let chrom_interval_map_2 =
+            get_chrom_interval_map(&second_track, exlcude.as_ref())
+                .unwrap_or_exit(None::<String>);
+
+        let empty_interval_map = IntegerIntervalMap::new();
+
+        for b in bin_sizes {
+            if b <= 0 {
+                continue;
+            }
+            println!("top {} overlap with bin size {}", top_k, b);
+            chrom_interval_map_1
+                .union_zip(&chrom_interval_map_2)
+                .into_iter()
+                .for_each(|(chrom, map_list)| {
+                    let ratio = get_top_k_overlap_ratio(
+                        &map_list[0].unwrap_or_else(|| &empty_interval_map),
+                        &map_list[1].unwrap_or_else(|| &empty_interval_map),
+                        top_k,
+                        b,
+                    )
+                    .unwrap_or_exit(None::<String>);
+
+                    println!("chrom {}: {} ", chrom, ratio);
+                });
+        }
+    }
 }

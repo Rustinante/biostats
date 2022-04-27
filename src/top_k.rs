@@ -1,13 +1,11 @@
-use biofile::{bed::Bed, iter::ToChromIntervalValueIter, util::TrackVariant};
 use math::{
     interval::I64Interval,
     iter::{AggregateOp, IntoBinnedIntervalIter},
     partition::integer_interval_map::IntegerIntervalMap,
-    set::ordered_integer_set::OrderedIntegerSet,
 };
 use std::{
     cmp::{Ord, Ordering, PartialOrd, Reverse},
-    collections::{BinaryHeap, HashMap},
+    collections::BinaryHeap,
 };
 
 #[derive(PartialEq)]

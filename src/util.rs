@@ -1,4 +1,8 @@
-use biofile::{bed::Chrom, iter::ToChromIntervalValueIter, util::TrackVariant};
+use biofile::{
+    bed::{Bed, Chrom},
+    iter::ToChromIntervalValueIter,
+    util::TrackVariant,
+};
 use math::{
     iter::{AsUnionZipped, IntoUnionZip},
     partition::integer_interval_map::IntegerIntervalMap,
@@ -191,4 +195,15 @@ pub fn manifest_path_join(filename: &str) -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push(filename);
     path
+}
+
+pub fn get_excluded_interval_maps(
+    exclude_track_filepath: Option<String>,
+) -> Option<HashMap<String, OrderedIntegerSet<i64>>> {
+    if let Some(path) = exclude_track_filepath {
+        // binarize_score is irrelevant for getting the intervals
+        Some(Bed::new(&path, false).get_chrom_to_intervals())
+    } else {
+        None
+    }
 }

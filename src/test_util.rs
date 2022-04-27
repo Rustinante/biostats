@@ -1,3 +1,5 @@
+use std::io::{BufWriter, Write};
+use tempfile::{NamedTempFile, TempPath};
 #[macro_export]
 macro_rules! check_chrom {
     (
@@ -19,4 +21,13 @@ macro_rules! check_chrom {
             None
         );
     };
+}
+
+pub fn create_temp_bed(content: &str) -> std::io::Result<TempPath> {
+    let file = NamedTempFile::new().unwrap();
+    {
+        let mut writer = BufWriter::new(&file);
+        writer.write_fmt(format_args!("{}", content))?;
+    }
+    Ok(file.into_temp_path())
 }

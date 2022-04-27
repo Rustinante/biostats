@@ -1,5 +1,5 @@
 use crate::{top_k::get_top_k, util::get_chrom_interval_map};
-use biofile::{bed::Bed, iter::ToChromIntervalValueIter, util::TrackVariant};
+use biofile::{bed::Bed, util::TrackVariant};
 use math::{
     interval::I64Interval,
     iter::{
@@ -8,10 +8,10 @@ use math::{
         UnionZip,
     },
     partition::integer_interval_map::IntegerIntervalMap,
-    set::{ordered_integer_set::OrderedIntegerSet, traits::Finite},
+    set::traits::Finite,
     stats::correlation::weighted_correlation,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// The weight is the reciprocal of the interval size so as to produce the mean
 /// of the values in the interval. Each bin is considered a single entity of
@@ -51,7 +51,7 @@ type Coord = i64;
 pub fn compute_track_correlations(
     first_track: &TrackVariant,
     second_track: &TrackVariant,
-    bin_sizes: Vec<Coord>,
+    bin_sizes: &Vec<Coord>,
     target_chroms: Option<HashSet<String>>,
     value_transform: ValueTransform,
     top_k: Option<i64>,
