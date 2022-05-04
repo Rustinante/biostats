@@ -4,6 +4,39 @@ use math::{
     partition::integer_interval_map::IntegerIntervalMap,
 };
 
+pub fn get_top_k_fraction_overlap_ratio(
+    map1: &IntegerIntervalMap<f64>,
+    map2: &IntegerIntervalMap<f64>,
+    top_k_fraction: f64,
+    bin_size: i64,
+) -> Result<f64, String> {
+    let k = get_k(map1, map2, top_k_fraction, bin_size);
+    eprintln!("top {} fraction corresponds to {} bins", top_k_fraction, k);
+    get_top_k_overlap_ratio(map1, map2, k, bin_size)
+}
+
+fn get_k(
+    map1: &IntegerIntervalMap<f64>,
+    map2: &IntegerIntervalMap<f64>,
+    top_k_fraction: f64,
+    bin_size: i64,
+) -> i64 {
+    let count = map1
+        .iter()
+        .into_binned_interval_iter(
+            bin_size,
+            AggregateOp::Average,
+            Box::new(|item| (*item.0, *item.1)),
+        )
+        .common_refinement_zip(map2.iter().into_binned_interval_iter(
+            bin_size,
+            AggregateOp::Average,
+            Box::new(|item| (*item.0, *item.1)),
+        ))
+        .count() as f64;
+    (count * top_k_fraction) as i64
+}
+
 pub fn get_top_k_overlap_ratio(
     map1: &IntegerIntervalMap<f64>,
     map2: &IntegerIntervalMap<f64>,
