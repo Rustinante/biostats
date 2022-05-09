@@ -1,4 +1,7 @@
-use crate::{top_k::get_top_k, util::get_chrom_interval_map};
+use crate::{
+    top_k::get_top_k,
+    util::{get_chrom_interval_map, get_common_refined_binned_iter},
+};
 use biofile::{bed::Bed, util::TrackVariant};
 use math::{
     interval::I64Interval,
@@ -100,9 +103,15 @@ pub fn compute_track_correlations(
             if let Some(k) = top_k {
                 let map_a_top_k = get_top_k(map_a, k, bin_size)?;
                 let map_b_top_k = get_top_k(map_b, k, bin_size)?;
-                Ok(a_bin_b(&map_a_top_k, &map_b_top_k, bin_size).collect())
+                Ok(get_common_refined_binned_iter(
+                    &map_a_top_k,
+                    &map_b_top_k,
+                    bin_size,
+                )
+                .collect())
             } else {
-                Ok(a_bin_b(map_a, map_b, bin_size).collect())
+                Ok(get_common_refined_binned_iter(map_a, map_b, bin_size)
+                    .collect())
             }
         };
 
@@ -166,7 +175,9 @@ pub fn compute_track_correlations(
                     ConcatenatedIter::from_iters(
                         get_target_interval_maps()
                             .map(|(_, map_a, map_b)| {
-                                a_bin_b(map_a, map_b, non_zero)
+                                get_common_refined_binned_iter(
+                                    map_a, map_b, non_zero,
+                                )
                             })
                             .collect(),
                     )
@@ -207,10 +218,6 @@ fn apply_transform(value: f64, transform: ValueTransform) -> f64 {
 type Boundary = i64;
 type Value = f64;
 type BtreeMapIter<'a> = std::collections::btree_map::Iter<'a, I64Interval, f64>;
-type BinnedIter<'a> = BinnedIntervalIter<
-    std::collections::btree_map::Iter<'a, I64Interval, f64>,
-    f64,
->;
 
 fn a_common_refine_b<'a>(
     map_a: &'a IntegerIntervalMap<f64>,
@@ -223,29 +230,4 @@ fn a_common_refine_b<'a>(
     Value,
 > {
     map_a.iter().common_refinement_zip(map_b.iter())
-}
-
-fn a_bin_b<'a>(
-    map_a: &'a IntegerIntervalMap<f64>,
-    map_b: &'a IntegerIntervalMap<f64>,
-    bin_size: i64,
-) -> CommonRefinementZipped<
-    Boundary,
-    BinnedIter<'a>,
-    <BinnedIter<'a> as Iterator>::Item,
-    I64Interval,
-    Value,
-> {
-    map_a
-        .iter()
-        .into_binned_interval_iter(
-            bin_size,
-            AggregateOp::Average,
-            Box::new(|item| (*item.0, *item.1)),
-        )
-        .common_refinement_zip(map_b.iter().into_binned_interval_iter(
-            bin_size,
-            AggregateOp::Average,
-            Box::new(|item| (*item.0, *item.1)),
-        ))
 }

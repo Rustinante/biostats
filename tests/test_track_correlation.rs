@@ -20,7 +20,7 @@ fn test_identical_tracks() {
         biostats::track_correlation::compute_track_correlations(
             &first_track,
             &second_track,
-            vec![0, 1, 5, 17],
+            &vec![0, 1, 5, 17],
             Some(chroms),
             ValueTransform::Identity,
             None,
@@ -54,7 +54,7 @@ fn test_single_chrom() {
         biostats::track_correlation::compute_track_correlations(
             &first_track,
             &second_track,
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13],
+            &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13],
             Some(chroms),
             ValueTransform::Identity,
             None,
@@ -116,7 +116,7 @@ fn test_two_chroms() {
         biostats::track_correlation::compute_track_correlations(
             &first_track,
             &second_track,
-            vec![0, 1, 2, 5],
+            &vec![0, 1, 2, 5],
             Some(chroms),
             ValueTransform::Identity,
             None,

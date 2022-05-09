@@ -1,4 +1,4 @@
-use crate::top_k::get_top_k;
+use crate::{top_k::get_top_k, util::get_common_refined_binned_iter};
 use math::{
     iter::{AggregateOp, CommonRefinementZip, IntoBinnedIntervalIter},
     partition::integer_interval_map::IntegerIntervalMap,
@@ -21,19 +21,8 @@ fn get_k(
     top_k_fraction: f64,
     bin_size: i64,
 ) -> i64 {
-    let count = map1
-        .iter()
-        .into_binned_interval_iter(
-            bin_size,
-            AggregateOp::Average,
-            Box::new(|item| (*item.0, *item.1)),
-        )
-        .common_refinement_zip(map2.iter().into_binned_interval_iter(
-            bin_size,
-            AggregateOp::Average,
-            Box::new(|item| (*item.0, *item.1)),
-        ))
-        .count() as f64;
+    let count =
+        get_common_refined_binned_iter(&map1, &map2, bin_size).count() as f64;
     (count * top_k_fraction) as i64
 }
 
@@ -46,18 +35,7 @@ pub fn get_top_k_overlap_ratio(
     let top_k_1 = get_top_k(map1, k, bin_size)?;
     let top_k_2 = get_top_k(map2, k, bin_size)?;
 
-    let iter = top_k_1
-        .iter()
-        .into_binned_interval_iter(
-            bin_size,
-            AggregateOp::Average,
-            Box::new(|item| (*item.0, *item.1)),
-        )
-        .common_refinement_zip(top_k_2.iter().into_binned_interval_iter(
-            bin_size,
-            AggregateOp::Average,
-            Box::new(|item| (*item.0, *item.1)),
-        ));
+    let iter = get_common_refined_binned_iter(&top_k_1, &top_k_2, bin_size);
 
     let mut count = 0i64;
     let mut num_overlapped_bins = 0i64;

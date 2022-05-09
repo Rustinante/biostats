@@ -4,7 +4,11 @@ use biofile::{
     util::TrackVariant,
 };
 use math::{
-    iter::{AsUnionZipped, IntoUnionZip},
+    interval::I64Interval,
+    iter::{
+        AggregateOp, AsUnionZipped, BinnedIntervalIter, CommonRefinementZip,
+        CommonRefinementZipped, IntoBinnedIntervalIter, IntoUnionZip,
+    },
     partition::integer_interval_map::IntegerIntervalMap,
     set::ordered_integer_set::OrderedIntegerSet,
 };
@@ -41,6 +45,38 @@ macro_rules! assert_vec_almost_eq {
             assert!((x - y).abs() < $epsilon);
         }
     };
+}
+
+type Boundary = i64;
+type Value = f64;
+type BinnedIter<'a> = BinnedIntervalIter<
+    std::collections::btree_map::Iter<'a, I64Interval, f64>,
+    f64,
+>;
+
+pub fn get_common_refined_binned_iter<'a>(
+    map_a: &'a IntegerIntervalMap<f64>,
+    map_b: &'a IntegerIntervalMap<f64>,
+    bin_size: i64,
+) -> CommonRefinementZipped<
+    Boundary,
+    BinnedIter<'a>,
+    <BinnedIter<'a> as Iterator>::Item,
+    I64Interval,
+    Value,
+> {
+    map_a
+        .iter()
+        .into_binned_interval_iter(
+            bin_size,
+            AggregateOp::Average,
+            Box::new(|item| (*item.0, *item.1)),
+        )
+        .common_refinement_zip(map_b.iter().into_binned_interval_iter(
+            bin_size,
+            AggregateOp::Average,
+            Box::new(|item| (*item.0, *item.1)),
+        ))
 }
 
 /// Returns chr1 to chr22 inclusive, together with chrX and chrY.
