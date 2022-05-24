@@ -1,14 +1,12 @@
 use crate::{
-    top_k::get_top_k,
+    top_k::get_top_k_bin_map,
     util::{get_chrom_interval_map, get_common_refined_binned_iter},
 };
 use biofile::{bed::Bed, util::TrackVariant};
 use math::{
     interval::I64Interval,
     iter::{
-        AggregateOp, BinnedIntervalIter, CommonRefinementZip,
-        CommonRefinementZipped, ConcatenatedIter, IntoBinnedIntervalIter,
-        UnionZip,
+        CommonRefinementZip, CommonRefinementZipped, ConcatenatedIter, UnionZip,
     },
     partition::integer_interval_map::IntegerIntervalMap,
     set::traits::Finite,
@@ -101,8 +99,8 @@ pub fn compute_track_correlations(
          bin_size|
          -> Result<Vec<(I64Interval, Vec<Option<f64>>)>, String> {
             if let Some(k) = top_k {
-                let map_a_top_k = get_top_k(map_a, k, bin_size)?;
-                let map_b_top_k = get_top_k(map_b, k, bin_size)?;
+                let map_a_top_k = get_top_k_bin_map(map_a, k, bin_size)?;
+                let map_b_top_k = get_top_k_bin_map(map_b, k, bin_size)?;
                 Ok(get_common_refined_binned_iter(
                     &map_a_top_k,
                     &map_b_top_k,

@@ -1,6 +1,9 @@
 use biofile::{bed::Bed, bedgraph::BedGraph, util::TrackVariant};
 use biostats::{
-    top_k_overlap::get_top_k_fraction_overlap_ratio,
+    top_k_overlap::{
+        get_top_k_fraction_overlap_ratio,
+        get_top_k_fraction_overlap_ratio_across_chroms,
+    },
     util::{get_chrom_interval_map, get_excluded_interval_maps},
 };
 use clap::{clap_app, Arg};
@@ -180,13 +183,26 @@ fn main() {
         get_chrom_interval_map(&second_track, exlcude.as_ref())
             .unwrap_or_exit(None::<String>);
 
-    let empty_interval_map = IntegerIntervalMap::new();
+    let invalid_bin_sizes: Vec<i64> = bin_sizes
+        .iter()
+        .filter(|&&s| s <= 0i64)
+        .map(|&s| s)
+        .collect();
 
+    if !invalid_bin_sizes.is_empty() {
+        eprintln!(
+            "bin sizes must be positive, but these are not: {:?}",
+            invalid_bin_sizes
+        );
+        std::process::exit(1);
+    }
+
+    let empty_interval_map = IntegerIntervalMap::new();
     for b in bin_sizes {
-        if b <= 0 {
-            continue;
-        }
-        println!("top {} overlap with bin size {}", top_k_fraction, b);
+        println!(
+            "=> computing top {} overlap with bin size {}",
+            top_k_fraction, b
+        );
         chrom_interval_map_1
             .union_zip(&chrom_interval_map_2)
             .into_iter()
@@ -201,5 +217,19 @@ fn main() {
 
                 println!("{}, {} ", chrom, ratio);
             });
+
+        let ratio = get_top_k_fraction_overlap_ratio_across_chroms(
+            &chrom_interval_map_1,
+            &chrom_interval_map_2,
+            top_k_fraction,
+            b,
+        )
+        .unwrap_or_exit(Some("failed to compute overall overlap ratio"));
+
+        println!(
+            "=> computing overall {} overlap with bin size {}",
+            top_k_fraction, b
+        );
+        println!("top_k_overall, {}", ratio);
     }
 }

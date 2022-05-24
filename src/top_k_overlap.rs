@@ -1,8 +1,8 @@
-use crate::{top_k::get_top_k, util::get_common_refined_binned_iter};
+use crate::{top_k::get_top_k_bin_map, util::get_common_refined_binned_iter};
 use math::{
-    iter::{AggregateOp, CommonRefinementZip, IntoBinnedIntervalIter},
-    partition::integer_interval_map::IntegerIntervalMap,
+    iter::UnionZip, partition::integer_interval_map::IntegerIntervalMap,
 };
+use std::collections::HashMap;
 
 pub fn get_top_k_fraction_overlap_ratio(
     map1: &IntegerIntervalMap<f64>,
@@ -11,7 +11,10 @@ pub fn get_top_k_fraction_overlap_ratio(
     bin_size: i64,
 ) -> Result<f64, String> {
     let k = get_k(map1, map2, top_k_fraction, bin_size);
-    eprintln!("top {} fraction corresponds to {} bins", top_k_fraction, k);
+    eprintln!(
+        "=> top {} fraction corresponds to {} bins",
+        top_k_fraction, k
+    );
     get_top_k_overlap_ratio(map1, map2, k, bin_size)
 }
 
@@ -32,8 +35,8 @@ pub fn get_top_k_overlap_ratio(
     k: i64,
     bin_size: i64,
 ) -> Result<f64, String> {
-    let top_k_1 = get_top_k(map1, k, bin_size)?;
-    let top_k_2 = get_top_k(map2, k, bin_size)?;
+    let top_k_1 = get_top_k_bin_map(map1, k, bin_size)?;
+    let top_k_2 = get_top_k_bin_map(map2, k, bin_size)?;
 
     let iter = get_common_refined_binned_iter(&top_k_1, &top_k_2, bin_size);
 
@@ -47,6 +50,39 @@ pub fn get_top_k_overlap_ratio(
     }
 
     Ok((num_overlapped_bins as f64) / (count as f64))
+}
+
+pub fn get_top_k_fraction_overlap_ratio_across_chroms(
+    chrom_to_int_interval_map_1: &HashMap<String, IntegerIntervalMap<f64>>,
+    chrom_to_int_interval_map_2: &HashMap<String, IntegerIntervalMap<f64>>,
+    top_k_fraction: f64,
+    bin_size: i64,
+) -> Result<f64, String> {
+    let mut total_num_bins = 0i64;
+    let mut num_overlapped_bins = 0i64;
+
+    let union_zipped_iter = chrom_to_int_interval_map_1
+        .union_zip(&chrom_to_int_interval_map_2)
+        .into_iter();
+
+    let empty_interval_map = IntegerIntervalMap::new();
+    for (_chrom, map_list) in union_zipped_iter {
+        let map1 = map_list[0].unwrap_or_else(|| &empty_interval_map);
+        let map2 = map_list[1].unwrap_or_else(|| &empty_interval_map);
+        let k = get_k(&map1, &map2, top_k_fraction, bin_size);
+        let top_k_1 = get_top_k_bin_map(map1, k, bin_size)?;
+        let top_k_2 = get_top_k_bin_map(map2, k, bin_size)?;
+        let iter = get_common_refined_binned_iter(&top_k_1, &top_k_2, bin_size);
+
+        for (_interval, values) in iter {
+            total_num_bins += 1;
+            if values[0].is_some() && values[1].is_some() {
+                num_overlapped_bins += 1;
+            }
+        }
+    }
+
+    Ok((num_overlapped_bins as f64) / (total_num_bins as f64))
 }
 
 #[cfg(test)]

@@ -28,7 +28,7 @@ impl Ord for HeapItem {
 
 impl Eq for HeapItem {}
 
-pub fn get_top_k(
+pub fn get_top_k_bin_map(
     interval_map: &IntegerIntervalMap<f64>,
     k: i64,
     bin_size: i64,
@@ -59,7 +59,9 @@ pub fn get_top_k(
 
 #[cfg(test)]
 mod tests {
-    use crate::{check_chrom, top_k::get_top_k, util::get_chrom_interval_map};
+    use crate::{
+        check_chrom, top_k::get_top_k_bin_map, util::get_chrom_interval_map,
+    };
     use biofile::{bed::Bed, util::TrackVariant};
     use math::{
         interval::I64Interval,
@@ -100,7 +102,8 @@ mod tests {
             chrom_to_interval_map
                 .iter()
                 .map(|(chrom, interval_map)| {
-                    let top_k = get_top_k(&interval_map, 3, 50).unwrap();
+                    let top_k =
+                        get_top_k_bin_map(&interval_map, 3, 50).unwrap();
                     (chrom.to_string(), top_k)
                 })
                 .collect();
